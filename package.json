@@ -1,0 +1,16 @@
+{
+  "name": "retroport",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Evidence-driven reconstruction of legacy game binaries",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "packageManager": "pnpm@10.15.0",
+  "scripts": {
+    "build": "pnpm --recursive --if-present run build",
+    "test": "pnpm --recursive --if-present run test",
+    "typecheck": "pnpm --recursive --if-present run typecheck"
+  }
+}
