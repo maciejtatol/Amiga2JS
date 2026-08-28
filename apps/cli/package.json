@@ -2,5 +2,15 @@
   "name": "@retroport/cli",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "bin": { "retroport": "./src/index.ts" },
+  "scripts": {
+    "doctor": "tsx src/index.ts doctor",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "@retroport/compatibility": "*",
+    "@retroport/schemas": "*"
+  },
+  "devDependencies": { "tsx": "4.20.3" }
 }

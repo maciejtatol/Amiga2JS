@@ -1,0 +1,15 @@
+id: amiga.cpu.unsupported
+severity: critical
+category: input
+classification: UNSUPPORTED
+match:
+  all:
+    - path: source.cpu
+      operator: not_equals
+      value: m68000
+message: The v0.1 CPU is not Motorola 68000.
+impact: CPU-specific analysis cannot run safely.
+recommendation:
+  - Use an m68000 fixture for the initial vertical slice.
+capabilities:
+  static_analysis: unavailable

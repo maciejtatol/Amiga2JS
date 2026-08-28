@@ -23,6 +23,20 @@ cd Amiga2JS
 npm install
 ```
 
+Run the compatibility doctor against the included Phase 0 manifest:
+
+```sh
+npm run doctor --workspace @retroport/cli -- \
+  --manifest fixtures/amiga-m68k-horizontal/project.example.json \
+  --rules compatibility/amiga
+```
+
+Expected output:
+
+```text
+SUPPORTED
+```
+
 Run all checks:
 
 ```sh
@@ -61,8 +75,9 @@ adapters come later.
 
 ## Current scope
 
-Amiga2JS is in **Phase 0**. The current implementation establishes the monorepo
-layout and package boundaries for the first vertical slice.
+Amiga2JS is in **Phase 0**. The current implementation includes foundational
+runtime-validated schemas, a YAML compatibility registry, and the
+`retroport doctor` diagnostic path.
 
 The first vertical slice will reconstruct a tiny stripped Amiga HUNK fixture
 owned by this repository. Ghidra, Amiberry, Phaser, model-provider integration,
