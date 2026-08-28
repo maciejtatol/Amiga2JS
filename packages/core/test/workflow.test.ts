@@ -1,12 +1,15 @@
 import type { AgentResult } from "@retroport/schemas";
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import {
   InvalidWorkflowError,
   createPhase0Workflow,
+  directDependencyResults,
   phase0StepIds,
   runWorkflow,
   type WorkflowDefinition,
   type WorkflowHandler,
+  type WorkflowStep,
 } from "../src/index.js";
 
 const result = (status: AgentResult<unknown>["status"] = "success"): AgentResult<unknown> => ({
@@ -18,8 +21,21 @@ const result = (status: AgentResult<unknown>["status"] = "success"): AgentResult
   confidence: status === "success" ? 1 : 0,
   nextActions: [],
 });
-const handler = (status?: AgentResult<unknown>["status"]): WorkflowHandler<object> =>
+type EmptyContext = Record<string, never>;
+const handler = (status?: AgentResult<unknown>["status"]): WorkflowHandler<EmptyContext> =>
   vi.fn(async () => result(status));
+const step = (
+  id: string,
+  dependsOn: readonly string[],
+  run: WorkflowHandler<EmptyContext> = handler(),
+  outputSchema: z.ZodType<null | string> = z.null(),
+): WorkflowStep<EmptyContext> => ({
+  id,
+  dependsOn,
+  run,
+  outputSchema,
+  projectDependencies: directDependencyResults,
+});
 
 describe("workflow runner", () => {
   it("runs fan-out branches before their join in stable order", async () => {
@@ -28,13 +44,13 @@ describe("workflow runner", () => {
       release.push(() => resolve(result()));
     }));
     const join = handler();
-    const workflow: WorkflowDefinition<object> = {
+    const workflow: WorkflowDefinition<EmptyContext> = {
       id: "fan-out",
       steps: [
-        { id: "join", dependsOn: ["a", "b"], run: join },
-        { id: "b", dependsOn: ["root"], run: branch },
-        { id: "root", dependsOn: [], run: handler() },
-        { id: "a", dependsOn: ["root"], run: branch },
+        step("join", ["a", "b"], join),
+        step("b", ["root"], branch),
+        step("root", []),
+        step("a", ["root"], branch),
       ],
     };
     const pending = runWorkflow(workflow, {});
@@ -53,8 +69,8 @@ describe("workflow runner", () => {
     const run = await runWorkflow({
       id: "failure",
       steps: [
-        { id: "explode", dependsOn: [], run: async () => { throw new Error("boom"); } },
-        { id: "dependent", dependsOn: ["explode"], run: dependent },
+        step("explode", [], async () => { throw new Error("boom"); }),
+        step("dependent", ["explode"], dependent),
       ],
     }, {});
     expect(run.status).toBe("failed");
@@ -66,21 +82,21 @@ describe("workflow runner", () => {
   });
 
   it("passes validated dependency results to joins", async () => {
-    const join = vi.fn(async ({ dependencies }) => {
-      expect(dependencies.left?.output).toBe("left-output");
-      expect(dependencies.right?.output).toBe("right-output");
+    const join = vi.fn(async ({ dependencyInput }) => {
+      expect((dependencyInput.left as { output: string }).output).toBe("left-output");
+      expect((dependencyInput.right as { output: string }).output).toBe("right-output");
       return result();
     });
-    const outputHandler = (output: string): WorkflowHandler<object> => async () => ({
+    const outputHandler = (output: string): WorkflowHandler<EmptyContext> => async () => ({
       ...result(),
       output,
     });
     await runWorkflow({
       id: "dataflow",
       steps: [
-        { id: "left", dependsOn: [], run: outputHandler("left-output") },
-        { id: "right", dependsOn: [], run: outputHandler("right-output") },
-        { id: "join", dependsOn: ["left", "right"], run: join },
+        step("left", [], outputHandler("left-output"), z.string()),
+        step("right", [], outputHandler("right-output"), z.string()),
+        step("join", ["left", "right"], join),
       ],
     }, {});
     expect(join).toHaveBeenCalledOnce();
@@ -95,32 +111,42 @@ describe("workflow runner", () => {
       return result();
     };
     const context = { nested: { value: 1 } };
-    await runWorkflow({ id: "immutable", steps: [{ id: "step", dependsOn: [], run: mutate }] }, context);
+    await runWorkflow({ id: "immutable", steps: [{
+      ...step("step", []),
+      run: mutate,
+    }] }, context);
     expect(context.nested.value).toBe(1);
   });
 
   it("normalizes malformed handler output as a failed step", async () => {
     const run = await runWorkflow({
       id: "invalid-output",
-      steps: [{
-        id: "invalid",
-        dependsOn: [],
-        run: async () => ({ status: "success" }) as AgentResult<unknown>,
-      }],
+      steps: [step(
+        "invalid",
+        [],
+        async () => ({ ...result(), output: "wrong-output-type" }),
+      )],
     }, {});
     expect(run.status).toBe("failed");
     expect(run.steps.invalid?.result?.warnings[0]?.code).toBe("core.workflow.step_exception");
   });
 
+  it("rejects non-JSON workflow context before executing handlers", async () => {
+    const run = runWorkflow({ id: "invalid-context", steps: [step("step", [])] }, {
+      mutable: new Map([["key", "value"]]),
+    } as unknown as EmptyContext);
+    await expect(run).rejects.toThrow("Non-JSON object");
+  });
+
   it.each([
     ["duplicate", [
-      { id: "a", dependsOn: [], run: handler() },
-      { id: "a", dependsOn: [], run: handler() },
+      step("a", []),
+      step("a", []),
     ]],
-    ["missing", [{ id: "a", dependsOn: ["missing"], run: handler() }]],
+    ["missing", [step("a", ["missing"])]],
     ["cycle", [
-      { id: "a", dependsOn: ["b"], run: handler() },
-      { id: "b", dependsOn: ["a"], run: handler() },
+      step("a", ["b"]),
+      step("b", ["a"]),
     ]],
   ])("rejects an invalid %s graph", async (_name, steps) => {
     await expect(runWorkflow({ id: "invalid", steps }, {})).rejects.toBeInstanceOf(
@@ -129,8 +155,19 @@ describe("workflow runner", () => {
   });
 
   it("defines the Phase 0 workflow as an executable graph", async () => {
-    const handlers = Object.fromEntries(phase0StepIds.map((id) => [id, handler()])) as
-      Record<(typeof phase0StepIds)[number], WorkflowHandler<object>>;
+    const handlers = Object.fromEntries(phase0StepIds.map((id) => [id, {
+      run: id === "semantic-analysis"
+        ? vi.fn(async () => ({ ...result(), output: {
+          claim: "player X follows input-dependent velocity",
+          evidenceIds: ["static-1", "runtime-1"],
+          addresses: ["0x1000"],
+          traceIds: ["trace-1"],
+          reproducibleExperiments: ["experiment-1"],
+          analystNarrative: "must not reach reviewer",
+        } }))
+        : handler(),
+      outputSchema: z.null(),
+    }])) as unknown as Parameters<typeof createPhase0Workflow<EmptyContext>>[0];
     const run = await runWorkflow(createPhase0Workflow(handlers), {});
     expect(run.executionOrder).toEqual([
       "check-compatibility", "check-legal-boundary", "inspect-input",
@@ -148,5 +185,9 @@ describe("workflow runner", () => {
       "acceptance-gate",
     ]);
     expect(run.status).toBe("success");
+    const reviewer = handlers["skeptical-review"].run as ReturnType<typeof vi.fn>;
+    expect(reviewer).toHaveBeenCalledWith(expect.objectContaining({
+      dependencyInput: expect.not.objectContaining({ analystNarrative: expect.anything() }),
+    }));
   });
 });

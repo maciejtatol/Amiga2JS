@@ -36,6 +36,15 @@ within each layer, producing a stable execution record independent of definition
 order. Each handler receives an immutable context snapshot and the validated
 results of its direct dependencies, so dataflow never relies on shared mutation.
 
+Every step declares a Zod schema for its output. The engine validates the full
+agent-result envelope and payload before making it available downstream. Context,
+results, and projected dependency inputs must be JSON-safe so future persistence
+cannot silently change their meaning.
+
+The skeptical-review edge uses a dedicated projection. It exposes the claim,
+evidence IDs, addresses, trace IDs, and reproducible experiments while removing
+the analyst's private narrative before the reviewer handler is invoked.
+
 ## Implementation sequence
 
 1. Deterministic graph validation and execution.

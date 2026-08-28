@@ -1,30 +1,36 @@
 import { agentResultSchema, type AgentResult } from "@retroport/schemas";
 import { z } from "zod";
 
-export type DeepReadonly<T> = T extends (...args: never[]) => unknown
-  ? T
-  : T extends readonly (infer Item)[]
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | readonly JsonValue[];
+export interface JsonObject { readonly [key: string]: JsonValue }
+
+export type DeepReadonly<T> = T extends readonly (infer Item)[]
     ? readonly DeepReadonly<Item>[]
     : T extends object
       ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> }
       : T;
 
-export interface WorkflowStepInput<TContext> {
+export interface WorkflowStepInput<TContext extends JsonObject> {
   readonly context: DeepReadonly<TContext>;
-  readonly dependencies: Readonly<Record<string, DeepReadonly<AgentResult<unknown>>>>;
+  readonly dependencyInput: JsonObject;
 }
 
-export type WorkflowHandler<TContext> = (
+export type WorkflowHandler<TContext extends JsonObject> = (
   input: WorkflowStepInput<TContext>,
 ) => Promise<AgentResult<unknown>>;
 
-export interface WorkflowStep<TContext> {
+export interface WorkflowStep<TContext extends JsonObject> {
   readonly id: string;
   readonly dependsOn: readonly string[];
+  readonly outputSchema: z.ZodType<JsonValue, z.ZodTypeDef, unknown>;
+  readonly projectDependencies: (
+    dependencies: Readonly<Record<string, DeepReadonly<AgentResult<JsonValue>>>>,
+  ) => JsonObject;
   readonly run: WorkflowHandler<TContext>;
 }
 
-export interface WorkflowDefinition<TContext> {
+export interface WorkflowDefinition<TContext extends JsonObject> {
   readonly id: string;
   readonly steps: readonly WorkflowStep<TContext>[];
 }
@@ -52,7 +58,23 @@ export class InvalidWorkflowError extends Error {
   override readonly name = "InvalidWorkflowError";
 }
 
-function stableLayers<TContext>(
+const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() => z.union([
+  z.string(),
+  z.number().finite(),
+  z.boolean(),
+  z.null(),
+  z.array(jsonValueSchema),
+  z.record(z.string(), jsonValueSchema),
+]));
+const jsonObjectSchema: z.ZodType<JsonObject> = z.record(z.string(), jsonValueSchema);
+
+export function directDependencyResults(
+  dependencies: Readonly<Record<string, DeepReadonly<AgentResult<JsonValue>>>>,
+): JsonObject {
+  return dependencies as unknown as JsonObject;
+}
+
+function stableLayers<TContext extends JsonObject>(
   definition: WorkflowDefinition<TContext>,
 ): readonly (readonly WorkflowStep<TContext>[])[] {
   if (definition.id.length === 0) {
@@ -113,6 +135,27 @@ function deepFreeze<T>(value: T): DeepReadonly<T> {
   return Object.freeze(value) as DeepReadonly<T>;
 }
 
+function assertJsonSafe(value: unknown, path = "$"): asserts value is JsonValue {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return;
+  if (typeof value === "number") {
+    if (Number.isFinite(value)) return;
+    throw new InvalidWorkflowError(`Non-finite number at ${path}`);
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertJsonSafe(item, `${path}[${index}]`));
+    return;
+  }
+  if (typeof value === "object") {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new InvalidWorkflowError(`Non-JSON object at ${path}`);
+    }
+    for (const [key, item] of Object.entries(value)) assertJsonSafe(item, `${path}.${key}`);
+    return;
+  }
+  throw new InvalidWorkflowError(`Unsupported JSON value at ${path}`);
+}
+
 function failedResult(error: unknown): AgentResult<unknown> {
   return {
     status: "failed",
@@ -128,7 +171,7 @@ function failedResult(error: unknown): AgentResult<unknown> {
   };
 }
 
-export async function runWorkflow<TContext>(
+export async function runWorkflow<TContext extends JsonObject>(
   definition: WorkflowDefinition<TContext>,
   context: Readonly<TContext>,
 ): Promise<WorkflowRun> {
@@ -136,7 +179,17 @@ export async function runWorkflow<TContext>(
   const records: Record<string, WorkflowStepRecord> = {};
   const scheduledOrder: string[] = [];
   const executionOrder: string[] = [];
-  const contextSnapshot = deepFreeze(structuredClone(context));
+  let contextSnapshot: DeepReadonly<TContext>;
+  try {
+    assertJsonSafe(context);
+    contextSnapshot = deepFreeze(
+      structuredClone(jsonObjectSchema.parse(context)) as TContext,
+    );
+  } catch (error: unknown) {
+    throw new InvalidWorkflowError(
+      `Workflow context must be JSON-safe: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 
   for (const layer of layers) {
     const runnable: WorkflowStep<TContext>[] = [];
@@ -159,11 +212,15 @@ export async function runWorkflow<TContext>(
         const dependencies = Object.fromEntries(step.dependsOn.map((dependency) => [
           dependency,
           records[dependency]!.result!,
-        ]));
-        const result = agentResultSchema(z.unknown()).parse(await step.run({
+        ])) as Record<string, DeepReadonly<AgentResult<JsonValue>>>;
+        const dependencyInput = deepFreeze(jsonObjectSchema.parse(
+          step.projectDependencies(deepFreeze(dependencies)),
+        ));
+        const result = agentResultSchema(step.outputSchema).parse(await step.run({
           context: contextSnapshot,
-          dependencies: deepFreeze(dependencies),
-        })) as AgentResult<unknown>;
+          dependencyInput,
+        })) as AgentResult<JsonValue>;
+        assertJsonSafe(result);
         return { step, result };
       } catch (error: unknown) {
         return { step, result: failedResult(error) };

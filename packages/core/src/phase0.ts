@@ -1,4 +1,13 @@
-import type { WorkflowDefinition, WorkflowHandler } from "./workflow.js";
+import type { AgentResult } from "@retroport/schemas";
+import { z } from "zod";
+import {
+  directDependencyResults,
+  type DeepReadonly,
+  type JsonObject,
+  type JsonValue,
+  type WorkflowDefinition,
+  type WorkflowHandler,
+} from "./workflow.js";
 
 export const phase0StepIds = [
   "inspect-input",
@@ -21,15 +30,53 @@ export const phase0StepIds = [
 ] as const;
 
 export type Phase0StepId = (typeof phase0StepIds)[number];
-export type Phase0Handlers<TContext> = Record<Phase0StepId, WorkflowHandler<TContext>>;
+export interface Phase0StepImplementation<TContext extends JsonObject> {
+  readonly run: WorkflowHandler<TContext>;
+  readonly outputSchema: z.ZodType<JsonValue, z.ZodTypeDef, unknown>;
+}
+export type Phase0Handlers<TContext extends JsonObject> = Record<
+  Phase0StepId,
+  Phase0StepImplementation<TContext>
+>;
 
-export function createPhase0Workflow<TContext>(
+export const semanticAnalysisOutputSchema = z.object({
+  claim: z.string().min(1),
+  evidenceIds: z.array(z.string().min(1)),
+  addresses: z.array(z.string()).default([]),
+  traceIds: z.array(z.string()).default([]),
+  reproducibleExperiments: z.array(z.string()).default([]),
+  analystNarrative: z.string().nullable().default(null),
+}).strict();
+export type SemanticAnalysisOutput = z.infer<typeof semanticAnalysisOutputSchema>;
+
+export const skepticalReviewerInputSchema = semanticAnalysisOutputSchema.omit({
+  analystNarrative: true,
+});
+export type SkepticalReviewerInput = z.infer<typeof skepticalReviewerInputSchema>;
+
+export function projectSkepticalReviewerInput(
+  dependencies: Readonly<Record<string, DeepReadonly<AgentResult<JsonValue>>>>,
+): JsonObject {
+  const analysis = semanticAnalysisOutputSchema.parse(
+    dependencies["semantic-analysis"]?.output,
+  );
+  const { analystNarrative: _privateNarrative, ...reviewerInput } = analysis;
+  return skepticalReviewerInputSchema.parse(reviewerInput);
+}
+
+export function createPhase0Workflow<TContext extends JsonObject>(
   handlers: Phase0Handlers<TContext>,
 ): WorkflowDefinition<TContext> {
   const step = (id: Phase0StepId, dependsOn: readonly Phase0StepId[]) => ({
     id,
     dependsOn,
-    run: handlers[id],
+    outputSchema: id === "semantic-analysis"
+      ? semanticAnalysisOutputSchema
+      : handlers[id].outputSchema,
+    projectDependencies: id === "skeptical-review"
+      ? projectSkepticalReviewerInput
+      : directDependencyResults,
+    run: handlers[id].run,
   });
   return {
     id: "amiga-m68k-horizontal-v0.1",
