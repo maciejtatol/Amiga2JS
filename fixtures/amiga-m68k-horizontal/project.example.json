@@ -1,0 +1,10 @@
+{
+  "id": "amiga-m68k-horizontal",
+  "name": "RetroPort horizontal movement fixture",
+  "source": {
+    "platform": "amiga",
+    "format": "hunk",
+    "cpu": "m68000"
+  },
+  "features": []
+}

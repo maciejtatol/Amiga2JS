@@ -2,5 +2,14 @@
   "name": "@retroport/compatibility",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "@retroport/schemas": "workspace:*",
+    "yaml": "2.8.0"
+  }
 }

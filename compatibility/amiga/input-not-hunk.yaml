@@ -1,0 +1,15 @@
+id: amiga.input.not_hunk
+severity: critical
+category: input
+classification: UNSUPPORTED
+match:
+  all:
+    - path: source.format
+      operator: not_equals
+      value: hunk
+message: The v0.1 input is not an Amiga HUNK executable.
+impact: The current source adapter cannot inspect this input format.
+recommendation:
+  - Provide a stripped Amiga HUNK executable.
+capabilities:
+  static_analysis: unavailable
