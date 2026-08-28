@@ -19,10 +19,11 @@ async function run(): Promise<void> {
   if (!manifestPath || !rulesPath) {
     throw new Error("doctor requires --manifest <file.json> and --rules <directory>");
   }
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
   const manifest = projectManifestSchema.parse(
-    JSON.parse(await readFile(resolve(manifestPath), "utf8")),
+    JSON.parse(await readFile(resolve(invocationDirectory, manifestPath), "utf8")),
   );
-  const rules = await loadCompatibilityRules(resolve(rulesPath));
+  const rules = await loadCompatibilityRules(resolve(invocationDirectory, rulesPath));
   const diagnosis = diagnoseProject(manifest, rules);
   console.log(diagnosis.classification);
   for (const warningId of diagnosis.warningIds) console.log(`- ${warningId}`);

@@ -9,7 +9,7 @@
     "typecheck": "tsc --project tsconfig.json"
   },
   "dependencies": {
-    "@retroport/schemas": "workspace:*",
+    "@retroport/schemas": "*",
     "yaml": "2.8.0"
   }
 }
