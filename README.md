@@ -53,9 +53,17 @@ pnpm typecheck
 pnpm test
 ```
 
-The package implementations and test suites will be introduced in subsequent
-milestones. Ghidra, Amiberry, Phaser, and model-provider integrations are not
-part of the initial scaffold.
+Run the compatibility doctor against the Phase 0 example manifest:
+
+```sh
+pnpm --filter @retroport/cli doctor --manifest \
+  fixtures/amiga-m68k-horizontal/project.example.json \
+  --rules compatibility/amiga
+```
+
+The current implementation includes foundational schemas and the compatibility
+diagnostic path. Ghidra, Amiberry, Phaser, and model-provider integrations are
+not part of this milestone.
 
 ## License
 

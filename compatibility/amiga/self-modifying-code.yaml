@@ -1,0 +1,17 @@
+id: amiga.memory.self_modifying
+severity: high
+category: static-analysis
+classification: REQUIRES_MANUAL_RE
+match:
+  all:
+    - path: features
+      operator: includes
+      value: self-modifying-code
+message: Self-modifying code detected.
+impact: Static decompilation may not represent the code executed at runtime.
+recommendation:
+  - Capture runtime code after modification.
+  - Analyze the resulting memory image.
+capabilities:
+  static_analysis: degraded
+  generation: unavailable
