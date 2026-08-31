@@ -104,6 +104,67 @@ export interface AgentResult<T> {
   nextActions: z.infer<typeof nextActionSchema>[];
 }
 
+export const persistedJsonValueSchema: z.ZodType<unknown> = z.lazy(() => z.union([
+  z.string(), z.number().finite(), z.boolean(), z.null(),
+  z.array(persistedJsonValueSchema), z.record(z.string(), persistedJsonValueSchema),
+]));
+export const persistedJsonObjectSchema = z.record(z.string(), persistedJsonValueSchema);
+export const persistedAgentResultSchema = agentResultSchema(persistedJsonValueSchema);
+export const persistedWorkflowStepRecordSchema = z.object({
+  id: z.string().min(1),
+  status: z.enum(["success", "partial", "blocked", "failed", "skipped"]),
+  result: persistedAgentResultSchema.optional(),
+  blockedBy: z.array(z.string().min(1)).optional(),
+}).strict().superRefine((record, ctx) => {
+  if (record.status === "skipped") {
+    if (record.result !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Skipped steps cannot have a result" });
+    if (!record.blockedBy?.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Skipped steps require blockedBy" });
+    if (record.blockedBy && new Set(record.blockedBy).size !== record.blockedBy.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "blockedBy must contain unique step IDs" });
+  } else {
+    if (record.result === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Executed steps require a result" });
+    if (record.blockedBy !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Executed steps cannot have blockedBy" });
+    if (record.result && record.status !== record.result.status) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Step status must match result status" });
+  }
+});
+export const persistedWorkflowRunSchema = z.object({
+  schemaVersion: z.literal(1),
+  runId: z.string().min(1),
+  workflowId: z.string().min(1),
+  workflowRevision: z.string().min(1),
+  topology: z.array(z.object({ id: z.string().min(1), dependsOn: z.array(z.string().min(1)) }).strict()),
+  context: persistedJsonObjectSchema,
+  revision: z.number().int().nonnegative(),
+  running: z.boolean(),
+  completed: z.boolean(),
+  outcome: z.enum(["success", "partial", "blocked", "failed"]).optional(),
+  scheduledOrder: z.array(z.string().min(1)),
+  executionOrder: z.array(z.string().min(1)),
+  steps: z.record(z.string(), persistedWorkflowStepRecordSchema),
+}).strict().superRefine((run, ctx) => {
+  if (run.completed !== (run.outcome !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Completed snapshots require an outcome" });
+  if (run.running === run.completed) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Snapshot must be either running or completed" });
+  const topologyIds = run.topology.map(({ id }) => id);
+  const recordIds = Object.keys(run.steps);
+  if (recordIds.some((key) => run.steps[key]?.id !== key)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Step map keys must match embedded record IDs" });
+  const unique = (items: readonly string[]) => new Set(items).size === items.length;
+  if (!unique(topologyIds)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Topology step IDs must be unique" });
+  if (!unique(run.scheduledOrder) || !unique(run.executionOrder)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Step orders must not contain duplicates" });
+  if (run.scheduledOrder.some((id) => !topologyIds.includes(id)) || recordIds.some((id) => !topologyIds.includes(id))) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Snapshot contains unknown step IDs" });
+  if (run.executionOrder.some((id) => !run.scheduledOrder.includes(id))) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Execution order must be a scheduled subset" });
+  if (recordIds.length !== run.scheduledOrder.length || recordIds.some((id) => !run.scheduledOrder.includes(id))) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Records must exactly match scheduled order" });
+  const executedRecords = recordIds.filter((id) => run.steps[id]?.status !== "skipped");
+  if (executedRecords.length !== run.executionOrder.length || executedRecords.some((id) => !run.executionOrder.includes(id))) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Execution order must exactly match executed records" });
+  if (run.completed && recordIds.length !== topologyIds.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Completed snapshots require every topology step" });
+});
+export type PersistedWorkflowRun = z.infer<typeof persistedWorkflowRunSchema>;
+
+export const workflowAuditEventSchema = z.object({
+  runId: z.string().min(1), sequence: z.number().int().positive(), revision: z.number().int().positive(),
+  type: z.enum(["RUN_CREATED", "LAYER_COMPLETED", "RUN_COMPLETED"]),
+  stepIds: z.array(z.string().min(1)),
+}).strict();
+export type WorkflowAuditEvent = z.infer<typeof workflowAuditEventSchema>;
+
 export const hypothesisSchema = z.object({
   id: z.string().min(1),
   claim: z.string().min(1),

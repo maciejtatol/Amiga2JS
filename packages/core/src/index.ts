@@ -2,17 +2,25 @@ export {
   InvalidWorkflowError,
   directDependencyResults,
   runWorkflow,
+  startPersistedWorkflow,
+  resumeWorkflow,
   type DeepReadonly,
   type JsonObject,
   type JsonPrimitive,
   type JsonValue,
   type WorkflowDefinition,
+  type PersistedWorkflowDefinition,
   type WorkflowHandler,
   type WorkflowRun,
   type WorkflowStep,
   type WorkflowStepRecord,
   type WorkflowStepStatus,
 } from "./workflow.js";
+export {
+  InMemoryWorkflowRunRepository, WorkflowRunRepositoryError, WorkflowRunNotFoundError,
+  WorkflowRunAlreadyExistsError, WorkflowRunRevisionError, type WorkflowRunRepository,
+  validateWorkflowRunHistory,
+} from "./repository.js";
 export {
   createPhase0Workflow,
   phase0EvidenceGateOutputSchema,

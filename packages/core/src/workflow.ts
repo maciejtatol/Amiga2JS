@@ -1,4 +1,13 @@
-import { agentResultSchema, type AgentResult } from "@retroport/schemas";
+import {
+  agentResultSchema,
+  persistedWorkflowRunSchema,
+  workflowAuditEventSchema,
+  type AgentResult,
+  type PersistedWorkflowRun,
+  type WorkflowAuditEvent,
+} from "@retroport/schemas";
+import type { WorkflowRunRepository } from "./repository.js";
+import { validateWorkflowRunHistory } from "./repository.js";
 import { z } from "zod";
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -14,6 +23,7 @@ export type DeepReadonly<T> = T extends readonly (infer Item)[]
 export interface WorkflowStepInput<TContext extends JsonObject> {
   readonly context: DeepReadonly<TContext>;
   readonly dependencyInput: JsonObject;
+  readonly idempotencyKey?: string;
 }
 
 export type WorkflowHandler<TContext extends JsonObject> = (
@@ -33,6 +43,10 @@ export interface WorkflowStep<TContext extends JsonObject> {
 export interface WorkflowDefinition<TContext extends JsonObject> {
   readonly id: string;
   readonly steps: readonly WorkflowStep<TContext>[];
+}
+export interface PersistedWorkflowDefinition<TContext extends JsonObject>
+  extends WorkflowDefinition<TContext> {
+  readonly revision: string;
 }
 
 export type WorkflowStepStatus =
@@ -171,6 +185,17 @@ function failedResult(error: unknown): AgentResult<unknown> {
   };
 }
 
+const outcomeOf = (
+  records: Readonly<Record<string, WorkflowStepRecord>>,
+): WorkflowRun["status"] => {
+  const statuses = Object.values(records).map((record) => record.status);
+  if (statuses.includes("failed")) return "failed";
+  if (statuses.some((value) => value === "blocked" || value === "skipped")) {
+    return "blocked";
+  }
+  return statuses.includes("partial") ? "partial" : "success";
+};
+
 export async function runWorkflow<TContext extends JsonObject>(
   definition: WorkflowDefinition<TContext>,
   context: Readonly<TContext>,
@@ -231,11 +256,167 @@ export async function runWorkflow<TContext extends JsonObject>(
     }
   }
 
-  const statuses = Object.values(records).map((record) => record.status);
-  const status = statuses.includes("failed")
-    ? "failed"
-    : statuses.some((value) => value === "blocked" || value === "skipped")
-      ? "blocked"
-      : statuses.includes("partial") ? "partial" : "success";
+  const status = outcomeOf(records);
   return { workflowId: definition.id, status, scheduledOrder, executionOrder, steps: records };
+}
+
+const topologyOf = <T extends JsonObject>(
+  layers: readonly (readonly WorkflowStep<T>[])[],
+) => layers.flat().map(({ id, dependsOn }) => ({
+  id,
+  dependsOn: [...dependsOn].sort(),
+}));
+const sameJson = (left: unknown, right: unknown) =>
+  JSON.stringify(left) === JSON.stringify(right);
+
+export async function startPersistedWorkflow<TContext extends JsonObject>(
+  definition: PersistedWorkflowDefinition<TContext>,
+  context: Readonly<TContext>,
+  runId: string,
+  repository: WorkflowRunRepository,
+): Promise<WorkflowRun> {
+  const layers = stableLayers(definition);
+  assertJsonSafe(context);
+  const snapshot = persistedWorkflowRunSchema.parse({
+    schemaVersion: 1,
+    runId,
+    workflowId: definition.id,
+    workflowRevision: definition.revision,
+    topology: topologyOf(layers),
+    context: structuredClone(context),
+    revision: 1,
+    running: true,
+    completed: false,
+    scheduledOrder: [],
+    executionOrder: [],
+    steps: {},
+  });
+  await repository.commit(snapshot, [{
+    runId,
+    sequence: 1,
+    revision: 1,
+    type: "RUN_CREATED",
+    stepIds: [],
+  }], null);
+  return continuePersisted(definition, snapshot as PersistedWorkflowRun, 1, repository, layers);
+}
+
+export async function resumeWorkflow<TContext extends JsonObject>(
+  definition: PersistedWorkflowDefinition<TContext>,
+  runId: string,
+  repository: WorkflowRunRepository,
+): Promise<WorkflowRun> {
+  const layers = stableLayers(definition);
+  const loaded = await repository.load(runId);
+  const snapshot = persistedWorkflowRunSchema.parse(loaded.snapshot) as PersistedWorkflowRun;
+  const events = workflowAuditEventSchema.array().parse(structuredClone(loaded.events));
+  validateWorkflowRunHistory(snapshot, events);
+  if (snapshot.workflowId !== definition.id) {
+    throw new InvalidWorkflowError("Persisted workflow ID mismatch");
+  }
+  if (snapshot.workflowRevision !== definition.revision) {
+    throw new InvalidWorkflowError("Persisted workflow revision mismatch");
+  }
+  if (!sameJson(snapshot.topology, topologyOf(layers))) {
+    throw new InvalidWorkflowError("Persisted workflow topology mismatch");
+  }
+  for (const [id, record] of Object.entries(snapshot.steps)) {
+    const step = definition.steps.find((candidate) => candidate.id === id);
+    if (!step) throw new InvalidWorkflowError(`Unknown persisted step ${id}`);
+    if (record.result && record.result.status !== "failed") {
+      agentResultSchema(step.outputSchema).parse(record.result);
+    }
+  }
+  if (snapshot.completed) return persistedToRun(snapshot);
+  return continuePersisted(definition, snapshot, events.length, repository, layers);
+}
+
+const persistedToRun = (snapshot: PersistedWorkflowRun): WorkflowRun => ({
+  workflowId: snapshot.workflowId, status: snapshot.outcome ?? "failed",
+  scheduledOrder: snapshot.scheduledOrder, executionOrder: snapshot.executionOrder,
+  steps: snapshot.steps as Record<string, WorkflowStepRecord>,
+});
+
+async function continuePersisted<TContext extends JsonObject>(
+  definition: PersistedWorkflowDefinition<TContext>,
+  initial: PersistedWorkflowRun,
+  initialEventCount: number,
+  repository: WorkflowRunRepository,
+  layers: readonly (readonly WorkflowStep<TContext>[])[],
+): Promise<WorkflowRun> {
+  let snapshot = initial;
+  let eventCount = initialEventCount;
+  const context = deepFreeze(structuredClone(snapshot.context) as TContext);
+  for (const layer of layers) {
+    if (layer.every((step) => snapshot.steps[step.id] !== undefined)) continue;
+    const records = structuredClone(snapshot.steps) as Record<string, WorkflowStepRecord>;
+    const scheduled = [...snapshot.scheduledOrder];
+    const executed = [...snapshot.executionOrder];
+    const runnable: WorkflowStep<TContext>[] = [];
+    for (const step of layer) {
+      if (records[step.id]) continue;
+      scheduled.push(step.id);
+      const blockedBy = step.dependsOn.filter((id) =>
+        ["failed", "blocked", "skipped"].includes(records[id]?.status ?? ""),
+      );
+      if (blockedBy.length) {
+        records[step.id] = { id: step.id, status: "skipped", blockedBy };
+      } else {
+        runnable.push(step);
+        executed.push(step.id);
+      }
+    }
+    const results = await Promise.all(runnable.map(async (step) => {
+      try {
+        const dependencies = Object.fromEntries(
+          step.dependsOn.map((id) => [id, records[id]!.result!]),
+        ) as Record<string, DeepReadonly<AgentResult<JsonValue>>>;
+        const dependencyInput = deepFreeze(jsonObjectSchema.parse(
+          step.projectDependencies(deepFreeze(dependencies)),
+        ));
+        const result = agentResultSchema(step.outputSchema).parse(await step.run({
+          context,
+          dependencyInput,
+          idempotencyKey: `${snapshot.runId}:${snapshot.workflowRevision}:${step.id}`,
+        })) as AgentResult<JsonValue>;
+        assertJsonSafe(result);
+        return { step, result };
+      } catch (error) {
+        return { step, result: failedResult(error) };
+      }
+    }));
+    for (const { step, result } of results) records[step.id] = { id: step.id, status: result.status, result };
+    const isLast = layer === layers.at(-1);
+    const revision = snapshot.revision + 1;
+    const outcome = isLast ? outcomeOf(records) : undefined;
+    const next = persistedWorkflowRunSchema.parse({
+      ...snapshot,
+      revision,
+      steps: records,
+      scheduledOrder: scheduled,
+      executionOrder: executed,
+      running: !isLast,
+      completed: isLast,
+      ...(outcome ? { outcome } : {}),
+    }) as PersistedWorkflowRun;
+    const events: WorkflowAuditEvent[] = [{
+      runId: snapshot.runId,
+      sequence: ++eventCount,
+      revision,
+      type: "LAYER_COMPLETED",
+      stepIds: layer.map(({ id }) => id),
+    }];
+    if (isLast) {
+      events.push({
+        runId: snapshot.runId,
+        sequence: ++eventCount,
+        revision,
+        type: "RUN_COMPLETED",
+        stepIds: [],
+      });
+    }
+    await repository.commit(next, events, snapshot.revision);
+    snapshot = next;
+  }
+  return persistedToRun(snapshot);
 }
