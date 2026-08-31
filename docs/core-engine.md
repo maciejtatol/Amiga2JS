@@ -49,6 +49,25 @@ the analyst's private narrative before the reviewer handler is invoked.
 
 1. Deterministic graph validation and execution.
 2. Evidence lifecycle and generation gates as pure functions.
+
+## Resumable execution
+
+Persisted workflows declare an explicit workflow revision and are checkpointed at
+stable DAG-layer boundaries. The initial snapshot is written before any handler
+runs; each completed layer atomically commits its snapshot and ordered audit
+events. Resume validates the workflow identity, revision, topology, and stored
+step outputs, then skips committed layers. Stored context is authoritative.
+
+Handlers receive a stable idempotency key (`runId:workflowRevision:stepId`). A
+crash before a layer checkpoint can rerun that entire layer, so integrations must
+use that key for idempotency; execution is deliberately not advertised as
+exactly-once. The current in-memory repository is a port-validation baseline,
+not durable production storage.
+
+Evidence has a separate immutable-by-ID repository port. Identical writes are
+idempotent, conflicting writes are rejected, references may arrive out of order,
+and detached snapshots are deterministically sorted. Lifecycle evaluation remains
+a separate policy layer.
 3. Reviewer-input isolation projections.
 4. In-memory repositories and resumable workflow snapshots.
 5. Content-addressed artifacts and SQLite persistence.
