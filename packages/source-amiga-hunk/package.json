@@ -1,0 +1,10 @@
+{
+  "name": "@retroport/source-amiga-hunk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run", "typecheck": "tsc --project tsconfig.json", "build:fixture": "node --import tsx scripts/build-fixture.ts" },
+  "dependencies": { "zod": "3.25.67" },
+  "devDependencies": { "tsx": "4.20.3" }
+}
