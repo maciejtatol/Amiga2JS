@@ -16,8 +16,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - node-version: 22.5.x
-            node-options: --experimental-sqlite
+          - node-version: 22.13.x
+            node-options: ""
           - node-version: 24.x
             node-options: ""
 
