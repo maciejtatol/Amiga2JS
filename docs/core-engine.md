@@ -71,7 +71,7 @@ a separate policy layer.
 3. Reviewer-input isolation projections.
 4. In-memory repositories and resumable workflow snapshots.
 5. Content-addressed artifacts and SQLite persistence. The `@retroport/persistence`
-   package uses Node 22.5+'s experimental `node:sqlite` API, so it has no native npm
+   package uses Node 22.13+'s built-in `node:sqlite` API, so it has no native npm
    dependency. SQLite snapshots and audit events are committed atomically; artifact
    IDs are SHA-256 digests. This phase does not claim exactly-once execution.
 6. HUNK, Ghidra, and Amiberry adapters.
