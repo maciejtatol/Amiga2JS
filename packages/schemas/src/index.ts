@@ -124,6 +124,117 @@ export const experimentSchema = z.object({
 });
 export type Experiment = z.infer<typeof experimentSchema>;
 
+export const evidenceChannelSchema = z.enum([
+  "static-analysis",
+  "dynamic-trace",
+  "controlled-experiment",
+  "source-artifact",
+  "manual-observation",
+]);
+export type EvidenceChannel = z.infer<typeof evidenceChannelSchema>;
+
+export const producerIdentitySchema = z.object({
+  actorId: z.string().min(1),
+  role: z.enum(["analyst", "reviewer", "experimenter", "verifier", "tool"]),
+}).strict();
+
+export const lifecycleEvidenceRecordSchema = z.object({
+  id: z.string().min(1),
+  channel: evidenceChannelSchema,
+  producer: producerIdentitySchema,
+  summary: z.string().min(1),
+}).strict();
+export type LifecycleEvidenceRecord = z.infer<typeof lifecycleEvidenceRecordSchema>;
+
+export const semanticLifecycleStatusSchema = z.enum([
+  "UNKNOWN", "CANDIDATE", "HYPOTHESIS", "SUPPORTED", "VERIFIED", "REJECTED",
+]);
+export type SemanticLifecycleStatus = z.infer<typeof semanticLifecycleStatusSchema>;
+
+export const semanticAssertionSchema = z.object({
+  id: z.string().min(1),
+  claim: z.string().min(1),
+  analystId: z.string().min(1),
+  evidenceIds: z.array(z.string().min(1)),
+  predictions: z.array(z.string().min(1)),
+}).strict();
+export type SemanticAssertion = z.infer<typeof semanticAssertionSchema>;
+
+export const lifecycleExperimentSchema = z.object({
+  id: z.string().min(1),
+  assertionId: z.string().min(1),
+  producer: producerIdentitySchema,
+  status: z.enum(["planned", "running", "passed", "failed", "inconclusive"]),
+  outcome: z.enum(["supporting", "rejecting", "inconclusive"]),
+  deterministic: z.boolean(),
+  testedPredictions: z.array(z.string().min(1)).min(1),
+  evidenceIds: z.array(z.string().min(1)).min(1),
+}).strict();
+export type LifecycleExperiment = z.infer<typeof lifecycleExperimentSchema>;
+
+export const evidenceLifecycleInputSchema = z.object({
+  assertions: z.array(semanticAssertionSchema),
+  evidence: z.array(lifecycleEvidenceRecordSchema),
+  experiments: z.array(lifecycleExperimentSchema),
+}).strict();
+
+export const lifecycleReasonSchema = z.object({
+  code: z.enum([
+    "DUPLICATE_ASSERTION_ID", "DUPLICATE_EVIDENCE_ID", "DUPLICATE_EXPERIMENT_ID",
+    "MISSING_EVIDENCE", "MISSING_ASSERTION", "MISSING_PREDICTIONS",
+    "INSUFFICIENT_CHANNELS", "NO_INDEPENDENT_DETERMINISTIC_SUPPORT",
+  ]),
+  referenceId: z.string().min(1),
+  message: z.string().min(1),
+}).strict();
+export type LifecycleReason = z.infer<typeof lifecycleReasonSchema>;
+
+export const assertionAssessmentSchema = z.object({
+  assertionId: z.string().min(1),
+  status: semanticLifecycleStatusSchema,
+  channels: z.array(evidenceChannelSchema),
+  reasons: z.array(lifecycleReasonSchema),
+}).strict();
+
+const generationGateDecisionFields = {
+  assertionIds: z.array(z.string().min(1)),
+  assessments: z.array(assertionAssessmentSchema),
+  reasons: z.array(lifecycleReasonSchema),
+};
+const gateCodeUnitSort = (values: readonly string[]): string[] =>
+  [...values].sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+export const generationGateAllowDecisionSchema = z.object({
+  decision: z.literal("allow"),
+  faithfulGeneration: z.literal(true),
+  assertionIds: generationGateDecisionFields.assertionIds.min(1),
+  assessments: generationGateDecisionFields.assessments.min(1).refine(
+    (items) => items.every(({ status }) => status === "SUPPORTED" || status === "VERIFIED"),
+    "Allow decisions require every assertion to be supported or verified",
+  ),
+  reasons: generationGateDecisionFields.reasons.max(0),
+}).strict().superRefine((decision, context) => {
+  const assertionIds = gateCodeUnitSort(decision.assertionIds);
+  const assessmentIds = gateCodeUnitSort(decision.assessments.map(({ assertionId }) => assertionId));
+  const invalid = new Set(decision.assessments.flatMap((assessment) => [
+    ...(new Set(assessment.channels).size < 2 ? ["Each allowed assessment requires at least two unique channels"] : []),
+    ...(assessment.reasons.length > 0 ? ["Allowed assessments cannot contain reasons"] : []),
+  ]));
+  if (new Set(assertionIds).size !== assertionIds.length) invalid.add("assertionIds must be unique");
+  if (new Set(assessmentIds).size !== assessmentIds.length) invalid.add("Assessment assertion IDs must be unique");
+  if (assertionIds.join("\u0000") !== assessmentIds.join("\u0000")) invalid.add("assertionIds and assessment IDs must match exactly");
+  for (const message of invalid) context.addIssue({ code: z.ZodIssueCode.custom, message });
+});
+export const generationGateBlockDecisionSchema = z.object({
+  decision: z.literal("block"),
+  faithfulGeneration: z.literal(false),
+  ...generationGateDecisionFields,
+}).strict();
+export const generationGateDecisionSchema = z.union([
+  generationGateAllowDecisionSchema,
+  generationGateBlockDecisionSchema,
+]);
+export type GenerationGateDecision = z.infer<typeof generationGateDecisionSchema>;
+
 export const horizontalMovementIRSchema = z.object({
   tick: z.object({ unit: z.literal("frame"), rateHz: z.number().positive() }),
   position: z.object({ bits: z.literal(16), signed: z.literal(true) }),

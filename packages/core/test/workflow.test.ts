@@ -22,6 +22,19 @@ const result = (status: AgentResult<unknown>["status"] = "success"): AgentResult
   nextActions: [],
 });
 type EmptyContext = Record<string, never>;
+const semanticOutput = {
+  assertionId: "movement",
+  claim: "player X follows input-dependent velocity",
+  evidenceIds: ["static-1", "runtime-1"], addresses: ["0x1000"],
+  traceIds: ["trace-1"], reproducibleExperiments: ["experiment-1"],
+  analystNarrative: "must not reach downstream consumers",
+};
+const allowDecision = {
+  decision: "allow" as const, faithfulGeneration: true as const,
+  assertionIds: ["movement"],
+  assessments: [{ assertionId: "movement", status: "SUPPORTED" as const, channels: ["dynamic-trace" as const, "static-analysis" as const], reasons: [] }],
+  reasons: [],
+};
 const handler = (status?: AgentResult<unknown>["status"]): WorkflowHandler<EmptyContext> =>
   vi.fn(async () => result(status));
 const step = (
@@ -158,13 +171,10 @@ describe("workflow runner", () => {
     const handlers = Object.fromEntries(phase0StepIds.map((id) => [id, {
       run: id === "semantic-analysis"
         ? vi.fn(async () => ({ ...result(), output: {
-          claim: "player X follows input-dependent velocity",
-          evidenceIds: ["static-1", "runtime-1"],
-          addresses: ["0x1000"],
-          traceIds: ["trace-1"],
-          reproducibleExperiments: ["experiment-1"],
-          analystNarrative: "must not reach reviewer",
+          ...semanticOutput,
         } }))
+        : id === "evidence-gate"
+          ? vi.fn(async () => ({ ...result(), output: allowDecision }))
         : handler(),
       outputSchema: z.null(),
     }])) as unknown as Parameters<typeof createPhase0Workflow<EmptyContext>>[0];
@@ -189,5 +199,38 @@ describe("workflow runner", () => {
     expect(reviewer).toHaveBeenCalledWith(expect.objectContaining({
       dependencyInput: expect.not.objectContaining({ analystNarrative: expect.anything() }),
     }));
+    const emitter = handlers["emit-semantic-ir"].run as ReturnType<typeof vi.fn>;
+    expect(emitter).toHaveBeenCalledWith(expect.objectContaining({
+      dependencyInput: {
+        gate: allowDecision,
+        semanticAnalysis: expect.not.objectContaining({ analystNarrative: expect.anything() }),
+      },
+    }));
+  });
+
+  it.each([
+    ["blocked result", "blocked", { decision: "block", faithfulGeneration: false, assertionIds: ["movement"], assessments: [], reasons: [] }, "blocked"],
+    ["inconsistent success/block result", "success", { decision: "block", faithfulGeneration: false, assertionIds: ["movement"], assessments: [], reasons: [] }, "failed"],
+    ["partial allow result", "partial", allowDecision, "failed"],
+    ["gate bound to another assertion", "success", {
+      ...allowDecision,
+      assertionIds: ["other"],
+      assessments: [{ ...allowDecision.assessments[0]!, assertionId: "other" }],
+    }, "failed"],
+  ] as const)("prevents generation for a %s", async (_case, gateStatus, gateOutput, expectedStatus) => {
+    const handlers = Object.fromEntries(phase0StepIds.map((id) => [id, {
+      run: id === "semantic-analysis"
+        ? vi.fn(async () => ({ ...result(), output: semanticOutput }))
+        : id === "evidence-gate"
+          ? vi.fn(async () => ({ ...result(gateStatus), output: gateOutput }))
+          : handler(),
+      outputSchema: z.null(),
+    }])) as unknown as Parameters<typeof createPhase0Workflow<EmptyContext>>[0];
+    const run = await runWorkflow(createPhase0Workflow(handlers), {});
+    expect(run.status).toBe(expectedStatus);
+    expect(run.steps["emit-semantic-ir"]?.status).toBe(gateStatus === "blocked" ? "skipped" : "failed");
+    expect(run.steps["generate-target"]?.status).toBe("skipped");
+    expect(handlers["emit-semantic-ir"].run).not.toHaveBeenCalled();
+    expect(handlers["generate-target"].run).not.toHaveBeenCalled();
   });
 });

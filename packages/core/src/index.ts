@@ -15,11 +15,14 @@ export {
 } from "./workflow.js";
 export {
   createPhase0Workflow,
+  phase0EvidenceGateOutputSchema,
+  projectSemanticIrInput,
   phase0StepIds,
   projectSkepticalReviewerInput,
   semanticAnalysisOutputSchema,
   skepticalReviewerInputSchema,
   type Phase0Handlers,
+  type Phase0EvidenceGateOutput,
   type Phase0StepImplementation,
   type Phase0StepId,
   type SemanticAnalysisOutput,

@@ -1,4 +1,8 @@
-import type { AgentResult } from "@retroport/schemas";
+import {
+  generationGateAllowDecisionSchema,
+  generationGateDecisionSchema,
+  type AgentResult,
+} from "@retroport/schemas";
 import { z } from "zod";
 import {
   directDependencyResults,
@@ -40,6 +44,7 @@ export type Phase0Handlers<TContext extends JsonObject> = Record<
 >;
 
 export const semanticAnalysisOutputSchema = z.object({
+  assertionId: z.string().min(1),
   claim: z.string().min(1),
   evidenceIds: z.array(z.string().min(1)),
   addresses: z.array(z.string()).default([]),
@@ -54,6 +59,9 @@ export const skepticalReviewerInputSchema = semanticAnalysisOutputSchema.omit({
 });
 export type SkepticalReviewerInput = z.infer<typeof skepticalReviewerInputSchema>;
 
+export const phase0EvidenceGateOutputSchema = generationGateDecisionSchema;
+export type Phase0EvidenceGateOutput = z.infer<typeof phase0EvidenceGateOutputSchema>;
+
 export function projectSkepticalReviewerInput(
   dependencies: Readonly<Record<string, DeepReadonly<AgentResult<JsonValue>>>>,
 ): JsonObject {
@@ -64,6 +72,22 @@ export function projectSkepticalReviewerInput(
   return skepticalReviewerInputSchema.parse(reviewerInput);
 }
 
+export function projectSemanticIrInput(
+  dependencies: Readonly<Record<string, DeepReadonly<AgentResult<JsonValue>>>>,
+): JsonObject {
+  const gateResult = dependencies["evidence-gate"];
+  if (gateResult?.status !== "success") {
+    throw new Error("Semantic IR requires a successful evidence gate result");
+  }
+  const gate = generationGateAllowDecisionSchema.parse(gateResult.output);
+  const analysis = semanticAnalysisOutputSchema.parse(dependencies["semantic-analysis"]?.output);
+  if (gate.assertionIds.length !== 1 || gate.assertionIds[0] !== analysis.assertionId) {
+    throw new Error(`Evidence gate is not bound to semantic assertion ${analysis.assertionId}`);
+  }
+  const { analystNarrative: _privateNarrative, ...semanticAnalysis } = analysis;
+  return { gate, semanticAnalysis };
+}
+
 export function createPhase0Workflow<TContext extends JsonObject>(
   handlers: Phase0Handlers<TContext>,
 ): WorkflowDefinition<TContext> {
@@ -72,10 +96,14 @@ export function createPhase0Workflow<TContext extends JsonObject>(
     dependsOn,
     outputSchema: id === "semantic-analysis"
       ? semanticAnalysisOutputSchema
-      : handlers[id].outputSchema,
+      : id === "evidence-gate"
+        ? phase0EvidenceGateOutputSchema
+        : handlers[id].outputSchema,
     projectDependencies: id === "skeptical-review"
       ? projectSkepticalReviewerInput
-      : directDependencyResults,
+      : id === "emit-semantic-ir"
+        ? projectSemanticIrInput
+        : directDependencyResults,
     run: handlers[id].run,
   });
   return {
@@ -94,10 +122,11 @@ export function createPhase0Workflow<TContext extends JsonObject>(
       step("evidence-gate", [
         "static-discovery",
         "dynamic-discovery",
+        "semantic-analysis",
         "skeptical-review",
         "run-experiment",
       ]),
-      step("emit-semantic-ir", ["evidence-gate"]),
+      step("emit-semantic-ir", ["evidence-gate", "semantic-analysis"]),
       step("generate-target", ["emit-semantic-ir"]),
       step("code-review", ["generate-target"]),
       step("behavioral-verification", ["code-review"]),
