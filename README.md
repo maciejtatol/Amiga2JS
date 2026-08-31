@@ -15,12 +15,26 @@ runtime evidence, semantic reconstruction, and deterministic verification.
 
 ## Quick start
 
-Requirements: **Node.js 22+** and **npm 10+**.
+Requirements: **Node.js 22.13+** and **npm 10+**.
 
 ```sh
 git clone https://github.com/maciejtatol/Amiga2JS.git
 cd Amiga2JS
 npm install
+```
+
+Run the complete local quality gate:
+
+```sh
+npm run lint
+npm run typecheck
+npm test
+```
+
+Build the deterministic Phase 0 fixture:
+
+```sh
+npm run build:fixture -w @retroport/source-amiga-hunk
 ```
 
 Run the compatibility doctor against the included Phase 0 manifest:
@@ -35,13 +49,6 @@ Expected output:
 
 ```text
 SUPPORTED
-```
-
-Run all checks:
-
-```sh
-npm run typecheck
-npm test
 ```
 
 ## What is Amiga2JS?
@@ -75,14 +82,15 @@ adapters come later.
 
 ## Current scope
 
-Amiga2JS is in **Phase 0**. The current implementation includes foundational
-runtime-validated schemas, a YAML compatibility registry, and the
-`retroport doctor` diagnostic path.
+Amiga2JS is in **Phase 0**. The current implementation includes runtime-
+validated schemas, a deterministic workflow engine, evidence gates, resumable
+SQLite persistence, content-addressed artifacts, a YAML compatibility registry,
+and the `retroport doctor` diagnostic path. It also includes a synthetic HUNK
+fixture and strict parser for testing the first source-analysis boundary.
 
-The first vertical slice will reconstruct a tiny stripped Amiga HUNK fixture
-owned by this repository. Ghidra, Amiberry, Phaser, model-provider integration,
-and Superfrog reconstruction are intentionally not part of the current
-milestone.
+The next vertical slice will connect this fixture to external static-analysis
+and runtime adapters. Ghidra, Amiberry, Phaser, model-provider integration, and
+Superfrog reconstruction are not included yet.
 
 ## Repository layout
 
@@ -94,6 +102,8 @@ packages/
   schemas/                     Runtime-validated contracts
   evidence/                    Evidence persistence and queries
   compatibility/               Rules and capability diagnostics
+  persistence/                  SQLite persistence and artifact storage
+  source-amiga-hunk/            Synthetic HUNK fixture builder and parser
 compatibility/
   amiga/                       Community-extensible Amiga rules
 fixtures/
@@ -103,12 +113,10 @@ docs/                          Architecture and project documentation
 
 ## Roadmap
 
-1. Finish foundational contracts and compatibility diagnostics.
-2. Build the repository-owned stripped HUNK fixture.
-3. Export deterministic static evidence with headless Ghidra.
-4. Capture deterministic runtime observations with Amiberry.
-5. Reconstruct and independently verify horizontal movement.
-6. Generate TypeScript and compare state tick by tick.
+1. Connect the HUNK fixture to deterministic static evidence exports.
+2. Add the Amiberry runtime-oracle adapter and scenario capture.
+3. Reconstruct and independently verify horizontal movement.
+4. Generate TypeScript and compare state tick by tick.
 
 Superfrog is a later real-world reference target, not the Phase 0 input.
 
