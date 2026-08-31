@@ -74,7 +74,9 @@ a separate policy layer.
    package uses Node 22.13+'s built-in `node:sqlite` API, so it has no native npm
    dependency. SQLite snapshots and audit events are committed atomically; artifact
    IDs are SHA-256 digests. This phase does not claim exactly-once execution.
-6. HUNK, Ghidra, and Amiberry adapters.
+6. The `@retroport/source-amiga-hunk` package builds the repository-owned
+   `amiga-m68k-horizontal` micro-fixture and strips metadata deterministically.
+7. Ghidra and Amiberry adapters.
 
 The engine deliberately does not contain provider-specific APIs. Concrete
 adapters compose with the graph at the CLI boundary.

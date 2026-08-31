@@ -1,0 +1,7 @@
+{
+  "name": "amiga-m68k-horizontal",
+  "playerX": 10,
+  "velocityX": 0,
+  "inputState": "RIGHT",
+  "tickCounter": 4
+}
