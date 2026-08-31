@@ -4,6 +4,9 @@ import {
   type GenerationGateDecision,
   type LifecycleEvidenceRecord,
   type LifecycleExperiment,
+  lifecycleEvidenceRecordSchema,
+  lifecycleExperimentSchema,
+  semanticAssertionSchema,
   type LifecycleReason,
   type SemanticAssertion,
   type SemanticLifecycleStatus,
@@ -13,6 +16,38 @@ export interface EvidenceLifecycleInput {
   assertions: readonly SemanticAssertion[];
   evidence: readonly LifecycleEvidenceRecord[];
   experiments: readonly LifecycleExperiment[];
+}
+
+export class EvidenceConflictError extends Error { override name = "EvidenceConflictError"; }
+export interface EvidenceRepositorySnapshot {
+  readonly assertions: readonly SemanticAssertion[];
+  readonly evidence: readonly LifecycleEvidenceRecord[];
+  readonly experiments: readonly LifecycleExperiment[];
+}
+export interface EvidenceRepository {
+  putAssertion(value: SemanticAssertion): Promise<void>;
+  putEvidence(value: LifecycleEvidenceRecord): Promise<void>;
+  putExperiment(value: LifecycleExperiment): Promise<void>;
+  snapshot(): Promise<EvidenceRepositorySnapshot>;
+}
+const canonicalJson = (value: unknown): string => JSON.stringify(value);
+const detached = <T>(value: T): T => structuredClone(value);
+export class InMemoryEvidenceRepository implements EvidenceRepository {
+  readonly #assertions = new Map<string, SemanticAssertion>();
+  readonly #evidence = new Map<string, LifecycleEvidenceRecord>();
+  readonly #experiments = new Map<string, LifecycleExperiment>();
+  async #put<T extends { id: string }>(map: Map<string, T>, value: T): Promise<void> {
+    const existing = map.get(value.id);
+    if (existing && canonicalJson(existing) !== canonicalJson(value)) throw new EvidenceConflictError(`Conflicting value for ID ${value.id}`);
+    if (!existing) map.set(value.id, detached(value));
+  }
+  async putAssertion(input: SemanticAssertion) { await this.#put(this.#assertions, semanticAssertionSchema.parse(detached(input))); }
+  async putEvidence(input: LifecycleEvidenceRecord) { await this.#put(this.#evidence, lifecycleEvidenceRecordSchema.parse(detached(input))); }
+  async putExperiment(input: LifecycleExperiment) { await this.#put(this.#experiments, lifecycleExperimentSchema.parse(detached(input))); }
+  async snapshot(): Promise<EvidenceRepositorySnapshot> {
+    const sorted = <T extends { id: string }>(map: Map<string, T>) => [...map.values()].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).map(detached);
+    return { assertions: sorted(this.#assertions), evidence: sorted(this.#evidence), experiments: sorted(this.#experiments) };
+  }
 }
 
 const compare = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0;
