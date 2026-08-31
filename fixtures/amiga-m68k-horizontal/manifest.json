@@ -1,0 +1,5 @@
+{
+  "source": "source.json",
+  "artifact": "build-stripped.hunk.hex",
+  "sha256": "2aee47bd7b094ba96d51dbdb71588f52e8b31fe84f21d544aeadd2d01c7b59f5"
+}
