@@ -3,7 +3,7 @@ import { persistedWorkflowRunSchema } from "@retroport/schemas";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
-  InMemoryWorkflowRunRepository, InvalidWorkflowError, WorkflowRunRevisionError,
+  InMemoryWorkflowRunRepository, InvalidWorkflowError,
   directDependencyResults, resumeWorkflow, startPersistedWorkflow,
   type PersistedWorkflowDefinition, type WorkflowRunRepository,
 } from "../src/index.js";

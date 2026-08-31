@@ -60,7 +60,10 @@ function duplicateReasons(
 ): LifecycleReason[] {
   const seen = new Set<string>();
   const duplicates = new Set<string>();
-  for (const id of ids) seen.has(id) ? duplicates.add(id) : seen.add(id);
+  for (const id of ids) {
+    if (seen.has(id)) duplicates.add(id);
+    else seen.add(id);
+  }
   return [...duplicates].sort(compare).map((id) => ({ code, referenceId: id, message: `Duplicate id: ${id}` }));
 }
 
