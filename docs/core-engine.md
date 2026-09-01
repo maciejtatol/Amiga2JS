@@ -80,5 +80,9 @@ a separate policy layer.
    snapshot boundary; Ghidra execution remains an optional external adapter.
 8. Amiberry runtime adapter.
 
+The `@retroport/runtime-amiberry` package defines validated input and
+observation records, an injectable Amiberry transport, and a deterministic
+scenario-capture helper. It does not require an Amiberry installation in CI.
+
 The engine deliberately does not contain provider-specific APIs. Concrete
 adapters compose with the graph at the CLI boundary.
