@@ -76,7 +76,9 @@ a separate policy layer.
    IDs are SHA-256 digests. This phase does not claim exactly-once execution.
 6. The `@retroport/source-amiga-hunk` package builds the repository-owned
    `amiga-m68k-horizontal` micro-fixture and strips metadata deterministically.
-7. Ghidra and Amiberry adapters.
+7. The `@retroport/static-analysis` package defines the validated Ghidra
+   snapshot boundary; Ghidra execution remains an optional external adapter.
+8. Amiberry runtime adapter.
 
 The engine deliberately does not contain provider-specific APIs. Concrete
 adapters compose with the graph at the CLI boundary.
