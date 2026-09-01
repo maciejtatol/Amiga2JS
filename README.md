@@ -104,6 +104,7 @@ packages/
   compatibility/               Rules and capability diagnostics
   persistence/                  SQLite persistence and artifact storage
   source-amiga-hunk/            Synthetic HUNK fixture builder and parser
+  static-analysis/              Ghidra headless snapshot boundary
 compatibility/
   amiga/                       Community-extensible Amiga rules
 fixtures/
