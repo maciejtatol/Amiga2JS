@@ -105,6 +105,7 @@ packages/
   persistence/                  SQLite persistence and artifact storage
   source-amiga-hunk/            Synthetic HUNK fixture builder and parser
   static-analysis/              Ghidra headless snapshot boundary
+  runtime-amiberry/             Amiberry runtime-oracle boundary
 compatibility/
   amiga/                       Community-extensible Amiga rules
 fixtures/
