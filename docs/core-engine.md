@@ -87,3 +87,6 @@ comparison. It does not require an Amiberry installation in CI.
 
 The engine deliberately does not contain provider-specific APIs. Concrete
 adapters compose with the graph at the CLI boundary.
+
+The `@retroport/verification` package replays a validated Semantic IR against
+captured runtime observations and reports the first divergent tick and field.
