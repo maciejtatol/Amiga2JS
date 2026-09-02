@@ -51,6 +51,31 @@ Expected output:
 SUPPORTED
 ```
 
+Run a headless Ghidra export when Ghidra is installed:
+
+```sh
+retroport analyze \
+  --analyze-headless /path/to/analyzeHeadless \
+  --project-directory /tmp/ghidra-projects \
+  --project-name amiga-fixture \
+  --input /path/to/amiga-m68k-horizontal.hunk \
+  --exporter /path/to/retroport-exporter.java
+```
+
+The input must be a decoded HUNK binary. The exporter must print one
+`RETROPORT_SNAPSHOT=<json>` line. The command validates and emits the
+normalized static-analysis snapshot.
+
+Capture runtime observations from an Amiberry automation server:
+
+```sh
+retroport capture \
+  --server http://127.0.0.1:8000 \
+  --artifact sha256:<64-hex-digest> \
+  --scenario path/to/scenario.json \
+  --addresses playerX,velocityX,tickCounter
+```
+
 ## What is Amiga2JS?
 
 Amiga2JS is an evidence-driven reverse-engineering project, not a
