@@ -96,3 +96,11 @@ LEFT, RIGHT, and NONE inputs across 1,000 ticks each.
 The static-analysis package includes a no-shell Node command runner, and the
 runtime package includes an HTTP transport. Both remain injectable so local
 tests do not require Ghidra or Amiberry.
+
+The CLI composes the static boundary through `retroport analyze`; all Ghidra
+paths are explicit command arguments, and the exporter output is schema-
+validated before it is printed.
+
+The `retroport capture` command composes the Amiberry HTTP transport with the
+scenario runner. It validates the scenario and artifact ID before requesting
+runtime observations.
