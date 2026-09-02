@@ -80,6 +80,7 @@ a separate policy layer.
    snapshot boundary; Ghidra execution remains an optional external adapter.
 8. Amiberry runtime boundary and deterministic observation capture.
 9. Durable SQLite storage for captured runtime observations and CLI integration.
+10. HUNK inspection and a deterministic Ghidra headless exporter.
 
 The `@retroport/runtime-amiberry` package defines validated input and
 observation records, an injectable Amiberry transport, deterministic scenario
@@ -103,6 +104,9 @@ tests do not require Ghidra or Amiberry.
 The CLI composes the static boundary through `retroport analyze`; all Ghidra
 paths are explicit command arguments, and the exporter output is schema-
 validated before it is printed.
+
+The `retroport inspect` command validates the repository's minimal HUNK shape
+before analysis and accepts either binary input or hexadecimal fixture files.
 
 The `retroport capture` command composes the Amiberry HTTP transport with the
 scenario runner. It validates the scenario and artifact ID before requesting
