@@ -73,8 +73,12 @@ retroport capture \
   --server http://127.0.0.1:8000 \
   --artifact sha256:<64-hex-digest> \
   --scenario path/to/scenario.json \
-  --addresses playerX,velocityX,tickCounter
+  --addresses playerX,velocityX,tickCounter \
+  --database captures.sqlite
 ```
+
+The `--database` option is optional: captures are always printed as JSON, and
+when supplied they are also saved as an immutable, tick-ordered SQLite batch.
 
 Verify captured observations against a Semantic IR:
 
@@ -133,9 +137,10 @@ contracts, an Amiberry runtime boundary with deterministic observation capture
 and first-divergence comparison, plus a synthetic HUNK fixture and strict
 parser for testing the first source-analysis boundary.
 
-The provider-neutral static-analysis and runtime transports are now defined;
-the next vertical slice will connect them to a real Ghidra exporter and
-Amiberry automation server. Phaser, model-provider integration, and Superfrog
+The provider-neutral static-analysis and runtime transports are now defined,
+and runtime captures can be persisted in SQLite for later verification. The
+next vertical slice will connect them to a real Ghidra exporter and Amiberry
+automation server. Phaser, model-provider integration, and Superfrog
 reconstruction are not included yet.
 
 ## Repository layout

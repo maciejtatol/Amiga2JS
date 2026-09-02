@@ -14,6 +14,7 @@ import { runPhase0AcceptanceSuite, verifyScenario } from "@retroport/verificatio
 import { horizontalMovementIRSchema } from "@retroport/schemas";
 import { simulationStateSchema } from "@retroport/target-typescript";
 import { GhidraHeadlessAdapter, NodeHeadlessCommandRunner } from "@retroport/static-analysis";
+import { DatabaseSync, SqliteRuntimeObservationRepository } from "@retroport/persistence";
 
 function optionValue(args: string[], option: string): string | undefined {
   const index = args.indexOf(option);
@@ -88,6 +89,15 @@ async function runCapture(args: string[]): Promise<void> {
   const oracle = new AmiberryRuntimeOracle(new HttpAmiberryTransport(required("--server")));
   await oracle.load(required("--artifact"));
   const observations = await captureScenario(oracle, scenario, addresses);
+  const databasePath = optionValue(args, "--database");
+  if (databasePath) {
+    const database = new DatabaseSync(resolve(invocationDirectory, databasePath));
+    try {
+      await new SqliteRuntimeObservationRepository(database).save(observations);
+    } finally {
+      database.close();
+    }
+  }
   console.log(JSON.stringify(observations, null, 2));
 }
 

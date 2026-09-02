@@ -13,6 +13,11 @@ import {
   type WorkflowRunRepository,
   validateWorkflowRunHistory,
 } from "@retroport/core";
+import {
+  runtimeObservationSchema,
+  type RuntimeObservation,
+  type RuntimeObservationRepository,
+} from "@retroport/runtime-amiberry";
 
 export interface ArtifactStore {
   put(content: Uint8Array, mediaType?: string): Promise<string>;
@@ -43,6 +48,17 @@ const migrations = [
         artifact_id TEXT PRIMARY KEY,
         content BLOB NOT NULL,
         media_type TEXT NOT NULL
+      ) STRICT;
+    `,
+  },
+  {
+    version: 2,
+    sql: `
+      CREATE TABLE IF NOT EXISTS runtime_observations (
+        scenario_id TEXT NOT NULL,
+        tick INTEGER NOT NULL,
+        observation_json TEXT NOT NULL,
+        PRIMARY KEY (scenario_id, tick)
       ) STRICT;
     `,
   },
@@ -226,6 +242,59 @@ export class SqliteWorkflowRunRepository implements WorkflowRunRepository {
       );
       for (const event of events) insertEvent.run(event.runId, event.sequence, JSON.stringify(event));
     });
+  }
+}
+
+const runtimeObservationsQuery =
+  "SELECT scenario_id, tick, observation_json FROM runtime_observations WHERE scenario_id = ? ORDER BY tick";
+
+/** Stores one immutable, ordered capture for each runtime scenario. */
+export class SqliteRuntimeObservationRepository implements RuntimeObservationRepository {
+  constructor(private readonly database: DatabaseSync) {
+    applyMigrations(database);
+  }
+
+  async save(input: readonly RuntimeObservation[]): Promise<void> {
+    const observations = runtimeObservationSchema.array().parse(structuredClone(input));
+    const scenarioIds = new Set(observations.map(({ scenarioId }) => scenarioId));
+    if (scenarioIds.size !== 1) {
+      throw new Error("An observation batch must contain one scenario");
+    }
+    const scenarioId = observations[0]!.scenarioId;
+    const ticks = new Set(observations.map(({ tick }) => tick));
+    if (ticks.size !== observations.length) {
+      throw new Error(`Observation ticks must be unique for scenario: ${scenarioId}`);
+    }
+
+    withTransaction(this.database, () => {
+      const existing = this.database.prepare(
+        "SELECT 1 FROM runtime_observations WHERE scenario_id = ? LIMIT 1",
+      ).get(scenarioId);
+      if (existing) {
+        throw new Error(`Observations already saved for scenario: ${scenarioId}`);
+      }
+
+      const insert = this.database.prepare(
+        "INSERT INTO runtime_observations (scenario_id, tick, observation_json) VALUES (?, ?, ?)",
+      );
+      // Keep a capture all-or-nothing if any row fails to persist.
+      for (const observation of observations) {
+        insert.run(observation.scenarioId, observation.tick, JSON.stringify(observation));
+      }
+    });
+  }
+
+  async load(scenarioId: string): Promise<readonly RuntimeObservation[]> {
+    const rows = this.database.prepare(runtimeObservationsQuery).all(scenarioId);
+    const observations = rows.map(({ scenario_id, tick, observation_json }) => {
+      const observation = runtimeObservationSchema.parse(JSON.parse(String(observation_json)));
+      if (observation.scenarioId !== String(scenario_id) || observation.tick !== Number(tick)) {
+        throw new Error("Persisted observation does not match its SQLite index");
+      }
+      return observation;
+    });
+    // Parse and clone persisted JSON so callers cannot mutate the database view.
+    return structuredClone(observations);
   }
 }
 
