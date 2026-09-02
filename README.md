@@ -76,6 +76,24 @@ retroport capture \
   --addresses playerX,velocityX,tickCounter
 ```
 
+Verify captured observations against a Semantic IR:
+
+```sh
+retroport verify \
+  --scenario path/to/scenario.json \
+  --initial-state path/to/initial-state.json \
+  --ir path/to/movement-ir.json \
+  --observations path/to/observations.json
+```
+
+Run the complete Phase 0 acceptance gate:
+
+```sh
+retroport acceptance
+```
+
+This runs three independent 1,000-tick replays for LEFT, RIGHT, and NONE.
+
 ## What is Amiga2JS?
 
 Amiga2JS is an evidence-driven reverse-engineering project, not a

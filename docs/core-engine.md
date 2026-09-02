@@ -104,3 +104,10 @@ validated before it is printed.
 The `retroport capture` command composes the Amiberry HTTP transport with the
 scenario runner. It validates the scenario and artifact ID before requesting
 runtime observations.
+
+The `retroport verify` command validates a Semantic IR and captured observations,
+prints the first-divergence report, and exits unsuccessfully when behavior does
+not match.
+
+The `retroport acceptance` command runs the independent Phase 0 reference suite:
+three 1,000-tick replays covering constant LEFT, RIGHT, and NONE input.
