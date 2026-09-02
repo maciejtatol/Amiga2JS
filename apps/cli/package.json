@@ -5,14 +5,16 @@
   "type": "module",
   "bin": { "retroport": "./src/index.ts" },
   "scripts": {
-    "doctor": "tsx src/index.ts doctor",
+    "acceptance": "node --import tsx src/index.ts acceptance",
+    "doctor": "node --import tsx src/index.ts doctor",
     "typecheck": "tsc --project tsconfig.json"
   },
   "dependencies": {
     "@retroport/compatibility": "*",
     "@retroport/runtime-amiberry": "*",
     "@retroport/schemas": "*",
-    "@retroport/static-analysis": "*"
+    "@retroport/static-analysis": "*",
+    "@retroport/verification": "*"
   },
   "devDependencies": { "tsx": "4.20.3" }
 }

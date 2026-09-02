@@ -3,7 +3,16 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { diagnoseProject, loadCompatibilityRules } from "@retroport/compatibility";
 import { projectManifestSchema } from "@retroport/schemas";
-import { captureScenario, HttpAmiberryTransport, runtimeScenarioSchema, AmiberryRuntimeOracle } from "@retroport/runtime-amiberry";
+import {
+  captureScenario,
+  HttpAmiberryTransport,
+  runtimeObservationSchema,
+  runtimeScenarioSchema,
+  AmiberryRuntimeOracle,
+} from "@retroport/runtime-amiberry";
+import { runPhase0AcceptanceSuite, verifyScenario } from "@retroport/verification";
+import { horizontalMovementIRSchema } from "@retroport/schemas";
+import { simulationStateSchema } from "@retroport/target-typescript";
 import { GhidraHeadlessAdapter, NodeHeadlessCommandRunner } from "@retroport/static-analysis";
 
 function optionValue(args: string[], option: string): string | undefined {
@@ -22,8 +31,16 @@ async function run(): Promise<void> {
     await runCapture(args);
     return;
   }
+  if (command === "verify") {
+    await runVerify(args);
+    return;
+  }
+  if (command === "acceptance") {
+    await runAcceptance();
+    return;
+  }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport analyze ... | retroport capture ...");
+    throw new Error("Usage: retroport doctor ... | retroport analyze ... | retroport capture ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -72,6 +89,38 @@ async function runCapture(args: string[]): Promise<void> {
   await oracle.load(required("--artifact"));
   const observations = await captureScenario(oracle, scenario, addresses);
   console.log(JSON.stringify(observations, null, 2));
+}
+
+async function runVerify(args: string[]): Promise<void> {
+  const required = (option: string): string => {
+    const value = optionValue(args, option);
+    if (!value) throw new Error(`verify requires ${option}`);
+    return value;
+  };
+  const readJson = async (option: string): Promise<unknown> => {
+    const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+    return JSON.parse(await readFile(resolve(invocationDirectory, required(option)), "utf8"));
+  };
+  const scenario = runtimeScenarioSchema.parse(await readJson("--scenario"));
+  const scenarioId = scenario.id;
+  const initialState = simulationStateSchema.parse(await readJson("--initial-state"));
+  const ir = horizontalMovementIRSchema.parse(await readJson("--ir"));
+  const observations = runtimeObservationSchema.array().parse(await readJson("--observations"));
+  const report = verifyScenario(scenarioId, initialState, scenario.inputs, ir, observations);
+  console.log(JSON.stringify(report, null, 2));
+  if (!report.passed) process.exitCode = 1;
+}
+
+function runAcceptance(): void {
+  const report = runPhase0AcceptanceSuite({
+    tick: { unit: "frame", rateHz: 50 },
+    position: { bits: 16, signed: true },
+    velocity: { bits: 16, signed: true },
+    inputMapping: { left: -2, idle: 0, right: 2 },
+    updateOrder: ["read-input", "set-velocity", "apply-velocity"],
+  });
+  console.log(JSON.stringify(report, null, 2));
+  if (!report.passed) process.exitCode = 1;
 }
 
 run().catch((error: unknown) => {
