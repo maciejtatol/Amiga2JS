@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@retroport/compatibility": "*",
-    "@retroport/schemas": "*"
+    "@retroport/runtime-amiberry": "*",
+    "@retroport/schemas": "*",
+    "@retroport/static-analysis": "*"
   },
   "devDependencies": { "tsx": "4.20.3" }
 }
