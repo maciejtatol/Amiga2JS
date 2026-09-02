@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HorizontalMovementIR } from "@retroport/schemas";
-import { verifyScenario } from "../src/index.js";
+import { runPhase0AcceptanceSuite, verifyScenario } from "../src/index.js";
 
 const ir: HorizontalMovementIR = {
   tick: { unit: "frame", rateHz: 50 }, position: { bits: 16, signed: true }, velocity: { bits: 16, signed: true },
@@ -37,5 +37,14 @@ describe("behavioral verification", () => {
     expect(() => verifyScenario("movement", { playerX: 0, velocityX: 0, tickCounter: 0 }, ["RIGHT"], ir, [
       { scenarioId: "movement", tick: 0, input: "LEFT", state: { playerX: 2, velocityX: 2, tickCounter: 1 } },
     ])).toThrow("input does not match");
+  });
+
+  it("passes the three deterministic 1000-tick acceptance replays", () => {
+    const result = runPhase0AcceptanceSuite(ir);
+    expect(result.passed).toBe(true);
+    expect(result.scenarios.map(({ id, ticks }) => [id, ticks])).toEqual([
+      ["constant-left", 1000], ["constant-right", 1000], ["constant-none", 1000],
+    ]);
+    expect(result.scenarios.every(({ verification }) => verification.mismatch === null)).toBe(true);
   });
 });

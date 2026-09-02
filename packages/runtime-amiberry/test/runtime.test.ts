@@ -3,6 +3,7 @@ import {
   AmiberryRuntimeOracle,
   captureScenario,
   findFirstObservationMismatch,
+  HttpAmiberryTransport,
   InMemoryRuntimeObservationRepository,
   type RuntimeInput,
   type RuntimeObservation,
@@ -53,6 +54,19 @@ describe("Amiberry runtime boundary", () => {
       request: async <T>(): Promise<T> => ({ playerX: Infinity } as T),
     });
     await expect(oracle.readState(["playerX"])).rejects.toThrow();
+  });
+
+  it("maps HTTP transport requests and rejects failed responses", async () => {
+    const requests: Request[] = [];
+    const transport = new HttpAmiberryTransport("http://amiberry/", async (input, init) => {
+      requests.push(new Request(input, init));
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    await expect(transport.request("pause")).resolves.toEqual({ ok: true });
+    expect(requests[0]!.url).toBe("http://amiberry/pause");
+    await expect(new HttpAmiberryTransport("http://amiberry", async () =>
+      new Response("offline", { status: 503 }),
+    ).request("pause")).rejects.toThrow("503");
   });
 
   it("stores detached observations and rejects duplicate scenarios", async () => {

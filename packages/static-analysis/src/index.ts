@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { z } from "zod";
+
+const execFileAsync = promisify(execFile);
 
 const nonEmpty = z.string().min(1);
 
@@ -22,6 +26,13 @@ export type StaticAnalysisSnapshot = z.infer<typeof staticAnalysisSnapshotSchema
 
 export interface HeadlessCommandRunner {
   run(command: string, args: readonly string[]): Promise<string>;
+}
+
+export class NodeHeadlessCommandRunner implements HeadlessCommandRunner {
+  async run(command: string, args: readonly string[]): Promise<string> {
+    const result = await execFileAsync(command, [...args], { maxBuffer: 10 * 1024 * 1024 });
+    return result.stdout;
+  }
 }
 export interface GhidraHeadlessOptions {
   readonly analyzeHeadless: string;

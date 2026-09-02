@@ -43,6 +43,29 @@ export interface AmiberryTransport {
   request<T>(operation: string, payload?: unknown): Promise<T>;
 }
 
+export interface AmiberryHttpClient {
+  (input: string | URL, init?: RequestInit): Promise<Response>;
+}
+
+export class HttpAmiberryTransport implements AmiberryTransport {
+  constructor(
+    private readonly baseUrl: string,
+    private readonly client: AmiberryHttpClient = fetch,
+  ) {}
+
+  async request<T>(operation: string, payload?: unknown): Promise<T> {
+    const response = await this.client(`${this.baseUrl.replace(/\/$/, "")}/${operation}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload ?? {}),
+    });
+    if (!response.ok) {
+      throw new Error(`Amiberry request failed (${response.status}): ${operation}`);
+    }
+    return await response.json() as T;
+  }
+}
+
 export class AmiberryRuntimeOracle implements RuntimeOracle {
   constructor(private readonly transport: AmiberryTransport) {}
 

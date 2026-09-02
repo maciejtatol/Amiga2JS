@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GhidraHeadlessAdapter, normalizeSnapshot, snapshotDigest, type StaticAnalysisSnapshot } from "../src/index.js";
+import { GhidraHeadlessAdapter, NodeHeadlessCommandRunner, normalizeSnapshot, snapshotDigest, type StaticAnalysisSnapshot } from "../src/index.js";
 
 const snapshot: StaticAnalysisSnapshot = {
   program: { format: "HUNK", languageId: "68000:BE:32:default", imageBase: "0x1000" },
@@ -33,5 +33,10 @@ describe("static analysis boundary", () => {
   it("rejects output without a snapshot marker", async () => {
     const adapter = new GhidraHeadlessAdapter({ run: async () => "analysis complete" });
     await expect(adapter.analyze({ analyzeHeadless: "analyzeHeadless", projectDirectory: "/tmp/project", projectName: "fixture", inputPath: "/tmp/fixture.hunk", exporterScript: "export.py" })).rejects.toThrow("did not emit");
+  });
+
+  it("runs headless commands without invoking a shell", async () => {
+    const output = await new NodeHeadlessCommandRunner().run(process.execPath, ["-e", "process.stdout.write('safe')"]);
+    expect(output).toBe("safe");
   });
 });
