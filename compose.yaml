@@ -1,0 +1,18 @@
+services:
+  retroport:
+    build:
+      context: .
+      target: runtime
+    image: amiga2js:local
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - retroport-data:/data
+    environment:
+      NODE_ENV: production
+    command: ["acceptance"]
+
+volumes:
+  retroport-data:

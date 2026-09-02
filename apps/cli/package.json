@@ -15,7 +15,7 @@
     "@retroport/runtime-amiberry": "*",
     "@retroport/schemas": "*",
     "@retroport/static-analysis": "*",
-    "@retroport/verification": "*"
-  },
-  "devDependencies": { "tsx": "4.20.3" }
+    "@retroport/verification": "*",
+    "tsx": "4.20.3"
+  }
 }
