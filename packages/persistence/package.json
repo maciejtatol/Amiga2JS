@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@retroport/core": "*",
+    "@retroport/runtime-amiberry": "*",
     "@retroport/schemas": "*"
   }
 }

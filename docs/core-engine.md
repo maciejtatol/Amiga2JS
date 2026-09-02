@@ -79,11 +79,14 @@ a separate policy layer.
 7. The `@retroport/static-analysis` package defines the validated Ghidra
    snapshot boundary; Ghidra execution remains an optional external adapter.
 8. Amiberry runtime boundary and deterministic observation capture.
+9. Durable SQLite storage for captured runtime observations and CLI integration.
 
 The `@retroport/runtime-amiberry` package defines validated input and
 observation records, an injectable Amiberry transport, deterministic scenario
-capture, immutable in-memory observation storage, and first-divergence
-comparison. It does not require an Amiberry installation in CI.
+capture, and first-divergence comparison. Its repository port has both an
+in-memory implementation for fast tests and a SQLite implementation in
+`@retroport/persistence` for durable captures. It does not require an Amiberry
+installation in CI.
 
 The engine deliberately does not contain provider-specific APIs. Concrete
 adapters compose with the graph at the CLI boundary.
@@ -103,7 +106,8 @@ validated before it is printed.
 
 The `retroport capture` command composes the Amiberry HTTP transport with the
 scenario runner. It validates the scenario and artifact ID before requesting
-runtime observations.
+runtime observations. Captures are printed as JSON and can also be written to
+the durable SQLite observation repository with `--database <path>`.
 
 The `retroport verify` command validates a Semantic IR and captured observations,
 prints the first-divergence report, and exits unsuccessfully when behavior does
