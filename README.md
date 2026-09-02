@@ -108,6 +108,7 @@ packages/
   source-amiga-hunk/            Synthetic HUNK fixture builder and parser
   static-analysis/              Ghidra headless snapshot boundary
   runtime-amiberry/             Amiberry runtime-oracle boundary
+  target-typescript/            Deterministic TypeScript target generator
 compatibility/
   amiga/                       Community-extensible Amiga rules
 fixtures/
