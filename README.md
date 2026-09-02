@@ -90,9 +90,10 @@ contracts, an Amiberry runtime boundary with deterministic observation capture
 and first-divergence comparison, plus a synthetic HUNK fixture and strict
 parser for testing the first source-analysis boundary.
 
-The next vertical slice will connect this fixture to external static-analysis
-and runtime adapters. Ghidra, Amiberry, Phaser, model-provider integration, and
-Superfrog reconstruction are not included yet.
+The provider-neutral static-analysis and runtime transports are now defined;
+the next vertical slice will connect them to a real Ghidra exporter and
+Amiberry automation server. Phaser, model-provider integration, and Superfrog
+reconstruction are not included yet.
 
 ## Repository layout
 
@@ -119,10 +120,11 @@ docs/                          Architecture and project documentation
 
 ## Roadmap
 
-1. Connect the static-analysis boundary to a real deterministic Ghidra export.
-2. Connect the runtime boundary to an Amiberry automation server.
+1. Connect the static-analysis transport to a real deterministic Ghidra export.
+2. Connect the runtime transport to an Amiberry automation server.
 3. Reconstruct and independently verify horizontal movement.
-4. Generate TypeScript and compare state tick by tick.
+4. Run the 1,000-tick, three-scenario acceptance suite.
+5. Generate TypeScript and compare state tick by tick.
 
 Superfrog is a later real-world reference target, not the Phase 0 input.
 
