@@ -78,11 +78,12 @@ a separate policy layer.
    `amiga-m68k-horizontal` micro-fixture and strips metadata deterministically.
 7. The `@retroport/static-analysis` package defines the validated Ghidra
    snapshot boundary; Ghidra execution remains an optional external adapter.
-8. Amiberry runtime adapter.
+8. Amiberry runtime boundary and deterministic observation capture.
 
 The `@retroport/runtime-amiberry` package defines validated input and
-observation records, an injectable Amiberry transport, and a deterministic
-scenario-capture helper. It does not require an Amiberry installation in CI.
+observation records, an injectable Amiberry transport, deterministic scenario
+capture, immutable in-memory observation storage, and first-divergence
+comparison. It does not require an Amiberry installation in CI.
 
 The engine deliberately does not contain provider-specific APIs. Concrete
 adapters compose with the graph at the CLI boundary.
