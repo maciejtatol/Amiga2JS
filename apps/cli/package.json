@@ -7,6 +7,7 @@
   "scripts": {
     "acceptance": "node --import tsx src/index.ts acceptance",
     "doctor": "node --import tsx src/index.ts doctor",
+    "inspect": "node --import tsx src/index.ts inspect",
     "typecheck": "tsc --project tsconfig.json"
   },
   "dependencies": {
@@ -14,6 +15,7 @@
     "@retroport/persistence": "*",
     "@retroport/runtime-amiberry": "*",
     "@retroport/schemas": "*",
+    "@retroport/source-amiga-hunk": "*",
     "@retroport/static-analysis": "*",
     "@retroport/verification": "*",
     "tsx": "4.20.3"

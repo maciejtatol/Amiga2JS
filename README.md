@@ -64,6 +64,14 @@ Expected output:
 SUPPORTED
 ```
 
+Inspect a HUNK input before static analysis. The command accepts either a
+binary HUNK file or the checked-in hexadecimal fixture representation:
+
+```sh
+retroport inspect \
+  --input fixtures/amiga-m68k-horizontal/build-stripped.hunk.hex
+```
+
 Run a headless Ghidra export when Ghidra is installed:
 
 ```sh
@@ -78,6 +86,10 @@ retroport analyze \
 The input must be a decoded HUNK binary. The exporter must print one
 `RETROPORT_SNAPSHOT=<json>` line. The command validates and emits the
 normalized static-analysis snapshot.
+
+The repository includes the deterministic exporter at
+`tools/ghidra/RetroPortSnapshot.java`; see `tools/ghidra/README.md` for the
+pinned headless invocation.
 
 Capture runtime observations from an Amiberry automation server:
 

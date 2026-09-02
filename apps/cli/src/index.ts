@@ -14,7 +14,7 @@ import { runPhase0AcceptanceSuite, verifyScenario } from "@retroport/verificatio
 import { horizontalMovementIRSchema } from "@retroport/schemas";
 import { simulationStateSchema } from "@retroport/target-typescript";
 import { GhidraHeadlessAdapter, NodeHeadlessCommandRunner } from "@retroport/static-analysis";
-import { DatabaseSync, SqliteRuntimeObservationRepository } from "@retroport/persistence";
+import { inspectHunk } from "@retroport/source-amiga-hunk";
 
 function optionValue(args: string[], option: string): string | undefined {
   const index = args.indexOf(option);
@@ -26,6 +26,10 @@ async function run(): Promise<void> {
   const [, , command, ...args] = process.argv;
   if (command === "analyze") {
     await runAnalyze(args);
+    return;
+  }
+  if (command === "inspect") {
+    await runInspect(args);
     return;
   }
   if (command === "capture") {
@@ -41,7 +45,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport analyze ... | retroport capture ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport analyze ... | retroport capture ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -56,6 +60,29 @@ async function run(): Promise<void> {
   const diagnosis = diagnoseProject(manifest, rules);
   console.log(diagnosis.classification);
   for (const warningId of diagnosis.warningIds) console.log(`- ${warningId}`);
+}
+
+function decodeHunkInput(input: Uint8Array): Uint8Array {
+  // Repository fixtures are stored as text so they remain reviewable in Git;
+  // production callers may provide the equivalent binary HUNK directly.
+  const hunkMagic = [0x00, 0x00, 0x03, 0xf3];
+  const isBinaryHunk = hunkMagic.every((byte, index) => input[index] === byte);
+  if (isBinaryHunk) {
+    return input;
+  }
+  const text = Buffer.from(input).toString("utf8").trim();
+  if (!/^[0-9a-f]+$/i.test(text) || text.length % 2 !== 0) {
+    throw new Error("inspect input must be a binary HUNK or an even-length hexadecimal file");
+  }
+  return new Uint8Array(Buffer.from(text, "hex"));
+}
+
+async function runInspect(args: string[]): Promise<void> {
+  const inputPath = optionValue(args, "--input");
+  if (!inputPath) throw new Error("inspect requires --input <file>");
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const input = decodeHunkInput(await readFile(resolve(invocationDirectory, inputPath)));
+  console.log(JSON.stringify(inspectHunk(input), null, 2));
 }
 
 async function runAnalyze(args: string[]): Promise<void> {
@@ -91,6 +118,8 @@ async function runCapture(args: string[]): Promise<void> {
   const observations = await captureScenario(oracle, scenario, addresses);
   const databasePath = optionValue(args, "--database");
   if (databasePath) {
+    // Keep SQLite optional for commands that only inspect or analyze inputs.
+    const { DatabaseSync, SqliteRuntimeObservationRepository } = await import("@retroport/persistence");
     const database = new DatabaseSync(resolve(invocationDirectory, databasePath));
     try {
       await new SqliteRuntimeObservationRepository(database).save(observations);
