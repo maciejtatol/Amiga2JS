@@ -90,3 +90,9 @@ adapters compose with the graph at the CLI boundary.
 
 The `@retroport/verification` package replays a validated Semantic IR against
 captured runtime observations and reports the first divergent tick and field.
+Its Phase 0 acceptance suite uses an independent reference model for constant
+LEFT, RIGHT, and NONE inputs across 1,000 ticks each.
+
+The static-analysis package includes a no-shell Node command runner, and the
+runtime package includes an HTTP transport. Both remain injectable so local
+tests do not require Ghidra or Amiberry.
