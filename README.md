@@ -85,8 +85,10 @@ adapters come later.
 Amiga2JS is in **Phase 0**. The current implementation includes runtime-
 validated schemas, a deterministic workflow engine, evidence gates, resumable
 SQLite persistence, content-addressed artifacts, a YAML compatibility registry,
-and the `retroport doctor` diagnostic path. It also includes a synthetic HUNK
-fixture and strict parser for testing the first source-analysis boundary.
+and the `retroport doctor` diagnostic path. It also includes static-analysis
+contracts, an Amiberry runtime boundary with deterministic observation capture
+and first-divergence comparison, plus a synthetic HUNK fixture and strict
+parser for testing the first source-analysis boundary.
 
 The next vertical slice will connect this fixture to external static-analysis
 and runtime adapters. Ghidra, Amiberry, Phaser, model-provider integration, and
@@ -115,8 +117,8 @@ docs/                          Architecture and project documentation
 
 ## Roadmap
 
-1. Connect the HUNK fixture to deterministic static evidence exports.
-2. Add the Amiberry runtime-oracle adapter and scenario capture.
+1. Connect the static-analysis boundary to a real deterministic Ghidra export.
+2. Connect the runtime boundary to an Amiberry automation server.
 3. Reconstruct and independently verify horizontal movement.
 4. Generate TypeScript and compare state tick by tick.
 

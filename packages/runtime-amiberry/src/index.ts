@@ -18,6 +18,18 @@ export const runtimeObservationSchema = z.object({
 }).strict();
 export type RuntimeObservation = z.infer<typeof runtimeObservationSchema>;
 
+export interface ObservationMismatch {
+  readonly tick: number;
+  readonly field: string;
+  readonly expected: number | undefined;
+  readonly actual: number | undefined;
+}
+
+export interface RuntimeObservationRepository {
+  save(observations: readonly RuntimeObservation[]): Promise<void>;
+  load(scenarioId: string): Promise<readonly RuntimeObservation[]>;
+}
+
 export interface RuntimeOracle {
   load(executableArtifactId: string): Promise<void>;
   pause(): Promise<void>;
@@ -59,6 +71,65 @@ export class AmiberryRuntimeOracle implements RuntimeOracle {
     const state = await this.transport.request<unknown>("read-state", { addresses });
     return z.record(z.string(), z.number().finite()).parse(state);
   }
+}
+
+export class InMemoryRuntimeObservationRepository implements RuntimeObservationRepository {
+  readonly #scenarios = new Map<string, RuntimeObservation[]>();
+
+  async save(input: readonly RuntimeObservation[]): Promise<void> {
+    const observations = runtimeObservationSchema.array().parse(structuredClone(input));
+    const scenarioIds = new Set(observations.map(({ scenarioId }) => scenarioId));
+    if (scenarioIds.size !== 1) {
+      throw new Error("An observation batch must contain one scenario");
+    }
+    const scenarioId = observations[0]!.scenarioId;
+    if (this.#scenarios.has(scenarioId)) {
+      throw new Error(
+        `Observations already saved for scenario: ${scenarioId}`,
+      );
+    }
+    this.#scenarios.set(scenarioId, observations);
+  }
+
+  async load(scenarioId: string): Promise<readonly RuntimeObservation[]> {
+    return structuredClone(this.#scenarios.get(scenarioId) ?? []);
+  }
+}
+
+export function findFirstObservationMismatch(
+  expected: readonly RuntimeObservation[],
+  actual: readonly RuntimeObservation[],
+): ObservationMismatch | null {
+  const expectedByTick = new Map(expected.map((observation) => [observation.tick, observation]));
+  const actualByTick = new Map(actual.map((observation) => [observation.tick, observation]));
+  const ticks = [...new Set([
+    ...expectedByTick.keys(),
+    ...actualByTick.keys(),
+  ])].sort((left, right) => left - right);
+  for (const tick of ticks) {
+    const expectedObservation = expectedByTick.get(tick);
+    const actualObservation = actualByTick.get(tick);
+    if (!expectedObservation || !actualObservation) {
+      return {
+        tick,
+        field: "observation",
+        expected: expectedObservation ? 1 : undefined,
+        actual: actualObservation ? 1 : undefined,
+      };
+    }
+    const fields = new Set([
+      ...Object.keys(expectedObservation.state),
+      ...Object.keys(actualObservation.state),
+    ]);
+    for (const field of [...fields].sort()) {
+      const expectedValue = expectedObservation.state[field];
+      const actualValue = actualObservation.state[field];
+      if (expectedValue !== actualValue) {
+        return { tick, field, expected: expectedValue, actual: actualValue };
+      }
+    }
+  }
+  return null;
 }
 
 export type ScenarioOracle = Pick<
