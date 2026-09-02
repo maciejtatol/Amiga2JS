@@ -1,0 +1,12 @@
+.git
+.github
+.codex
+.agents
+node_modules
+**/node_modules
+coverage
+dist
+.retroport
+.ai-generated
+*.log
+.DS_Store

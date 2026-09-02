@@ -31,6 +31,19 @@ npm run typecheck
 npm test
 ```
 
+Run the same acceptance gate in a container. The SQLite database is stored in
+the `retroport-data` Compose volume:
+
+```sh
+docker compose build
+docker compose run --rm retroport
+```
+
+To persist a runtime capture, add `--database /data/captures.sqlite` to the
+`retroport capture` command run through Compose. Ghidra and Amiberry remain
+external services; this image provides their CLI integration points rather
+than bundling those installations.
+
 Build the deterministic Phase 0 fixture:
 
 ```sh
