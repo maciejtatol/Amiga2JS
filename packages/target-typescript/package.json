@@ -1,0 +1,9 @@
+{
+  "name": "@retroport/target-typescript",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run", "typecheck": "tsc --project tsconfig.json" },
+  "dependencies": { "@retroport/schemas": "*", "zod": "3.25.67" }
+}
