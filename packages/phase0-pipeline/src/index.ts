@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   analyzeHorizontalMovement,
   gradeHorizontalMovement,
@@ -19,7 +20,7 @@ import {
 } from "@retroport/runtime-amiberry";
 import { runHorizontalMovement } from "@retroport/source-amiga-hunk";
 import type { AgentResult, HorizontalMovementIR } from "@retroport/schemas";
-import type { StaticAnalysisSnapshot } from "@retroport/static-analysis";
+import { normalizeSnapshot, type StaticAnalysisSnapshot } from "@retroport/static-analysis";
 import {
   generateSimulationSource,
   simulationStateSchema,
@@ -44,6 +45,21 @@ const scenariosSchema = z.array(scenarioSchema).superRefine((scenarios, context)
     seen.add(scenario.id);
   }
 });
+const digestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/);
+
+export const phase0RunManifestSchema = z.object({
+  schemaVersion: z.literal(1),
+  artifactId: digestSchema,
+  staticSnapshotDigest: digestSchema.nullable(),
+  observationDigest: digestSchema,
+  analysisDigest: digestSchema,
+  reviewDigest: digestSchema,
+  irDigest: digestSchema.nullable(),
+  generatedSourceDigest: digestSchema.nullable(),
+  verificationDigest: digestSchema.nullable(),
+  gradeDigest: digestSchema.nullable(),
+}).strict();
+export type Phase0RunManifest = z.infer<typeof phase0RunManifestSchema>;
 
 export interface Phase0Scenario {
   readonly id: string;
@@ -56,6 +72,7 @@ export type FixtureStep = (
 ) => Readonly<Record<string, number>>;
 
 export interface Phase0PipelineInput {
+  readonly artifactId: string;
   readonly scenarios: readonly Phase0Scenario[];
   readonly initialState: SimulationState;
   readonly step: FixtureStep;
@@ -65,6 +82,7 @@ export interface Phase0PipelineInput {
 }
 
 export interface Phase0PipelineResult {
+  readonly manifest: Phase0RunManifest;
   readonly observations: readonly RuntimeObservation[];
   readonly analysis: AgentResult<MovementDiscovery>;
   readonly review: AgentResult<MovementReview>;
@@ -73,6 +91,20 @@ export interface Phase0PipelineResult {
   readonly verification: readonly VerificationReport[];
   readonly grade: AgentResult<MovementGrade> | null;
   readonly passed: boolean;
+}
+
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value)
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .map(([key, nested]) => [key, canonicalize(nested)]));
+  }
+  return value;
+}
+
+function digest(value: unknown): string {
+  return `sha256:${createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex")}`;
 }
 
 const microFixtureScenarios: readonly Phase0Scenario[] = [
@@ -107,6 +139,7 @@ const microFixtureStep: FixtureStep = (state, input) => ({
 /** Run the repository-owned fixture with its known verification metadata. */
 export function runMicroFixturePipeline(): Phase0PipelineResult {
   return runPhase0Pipeline({
+    artifactId: "sha256:2aee47bd7b094ba96d51dbdb71588f52e8b31fe84f21d544aeadd2d01c7b59f5",
     scenarios: microFixtureScenarios,
     initialState: { playerX: 0, velocityX: 0, tickCounter: 0 },
     step: microFixtureStep,
@@ -142,13 +175,24 @@ function collectObservations(
 
 /** Run every local Phase 0 boundary without requiring external services. */
 export function runPhase0Pipeline(input: Phase0PipelineInput): Phase0PipelineResult {
+  const artifactId = digestSchema.parse(input.artifactId);
   const metadata = movementIRMetadataSchema.parse(structuredClone(input.metadata));
   const groundTruth = movementGroundTruthSchema.parse(structuredClone(input.groundTruth));
   const observations = collectObservations(input.scenarios, input.initialState, input.step);
   const analysis = analyzeHorizontalMovement(observations, input.staticSnapshot);
   const review = reviewHorizontalMovement(analysis.output.selected, observations);
+  const staticSnapshotDigest = input.staticSnapshot === undefined
+    ? null
+    : digest(normalizeSnapshot(input.staticSnapshot));
   if (analysis.status !== "success" || review.status !== "success" || !analysis.output.selected) {
-    return { observations, analysis, review, ir: null, generatedSource: null, verification: [], grade: null, passed: false };
+    return {
+      manifest: phase0RunManifestSchema.parse({
+        schemaVersion: 1, artifactId, staticSnapshotDigest,
+        observationDigest: digest(observations), analysisDigest: digest(analysis), reviewDigest: digest(review),
+        irDigest: null, generatedSourceDigest: null, verificationDigest: null, gradeDigest: null,
+      }),
+      observations, analysis, review, ir: null, generatedSource: null, verification: [], grade: null, passed: false,
+    };
   }
 
   const ir = movementCandidateToIR(analysis.output.selected, metadata);
@@ -163,6 +207,12 @@ export function runPhase0Pipeline(input: Phase0PipelineInput): Phase0PipelineRes
   ));
   const grade = gradeHorizontalMovement(analysis.output.selected, groundTruth);
   return {
+    manifest: phase0RunManifestSchema.parse({
+      schemaVersion: 1, artifactId, staticSnapshotDigest,
+      observationDigest: digest(observations), analysisDigest: digest(analysis), reviewDigest: digest(review),
+      irDigest: digest(ir), generatedSourceDigest: digest(generatedSource),
+      verificationDigest: digest(verification), gradeDigest: digest(grade),
+    }),
     observations,
     analysis,
     review,

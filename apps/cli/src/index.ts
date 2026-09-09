@@ -269,6 +269,7 @@ function runPhase0(): void {
   const result = runMicroFixturePipeline();
   console.log(JSON.stringify({
     passed: result.passed,
+    manifest: result.manifest,
     analysis: result.analysis.status,
     review: result.review.status,
     grade: result.grade?.status ?? "not-run",

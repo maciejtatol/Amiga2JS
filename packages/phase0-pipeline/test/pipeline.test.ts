@@ -6,6 +6,7 @@ const scenarios = [
   { id: "right", inputs: ["RIGHT", "RIGHT", "NONE"] as const },
   { id: "none", inputs: ["NONE", "NONE"] as const },
 ];
+const artifactId = `sha256:${"a".repeat(64)}`;
 
 const metadata = {
   tick: { unit: "frame" as const, rateHz: 50 },
@@ -31,13 +32,16 @@ const step = (state: Readonly<Record<string, number>>, input: "LEFT" | "RIGHT" |
 describe("Phase 0 pipeline", () => {
   it("runs the repository-owned MicroFixture end to end", () => {
     const result = runMicroFixturePipeline();
+    const repeat = runMicroFixturePipeline();
     expect(result.passed).toBe(true);
     expect(result.verification).toHaveLength(3);
     expect(result.verification.every(({ passed }) => passed)).toBe(true);
+    expect(result.manifest).toEqual(repeat.manifest);
   });
 
   it("runs reconstruction through verification and grading", () => {
     const result = runPhase0Pipeline({
+      artifactId,
       scenarios,
       initialState: { playerX: 0, velocityX: 0, tickCounter: 0 },
       step,
@@ -55,10 +59,22 @@ describe("Phase 0 pipeline", () => {
     expect(result.verification.every(({ passed }) => passed)).toBe(true);
     expect(result.grade?.status).toBe("success");
     expect(result.generatedSource).toContain("export function step");
+    expect(result.manifest).toMatchObject({
+      schemaVersion: 1,
+      artifactId,
+      staticSnapshotDigest: null,
+    });
+    expect(result.manifest.irDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(result.manifest.generatedSourceDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(result.manifest.analysisDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(result.manifest.reviewDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(result.manifest.verificationDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(result.manifest.gradeDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
   });
 
   it("blocks when the fixture does not cover all input channels", () => {
     const result = runPhase0Pipeline({
+      artifactId,
       scenarios: scenarios.slice(0, 2),
       initialState: { playerX: 0, velocityX: 0, tickCounter: 0 },
       step,

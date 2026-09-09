@@ -180,6 +180,9 @@ generation, differential verification, and ground-truth grading:
 retroport phase0
 ```
 
+The gate output includes a reproducibility manifest with stable digests for the
+artifact and every generated pipeline result.
+
 ## What is Amiga2JS?
 
 Amiga2JS is an evidence-driven reverse-engineering project, not a
