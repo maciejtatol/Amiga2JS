@@ -5,6 +5,7 @@ import {
   findFirstObservationMismatch,
   HttpAmiberryTransport,
   InMemoryRuntimeObservationRepository,
+  runStatePatchExperiment,
   type RuntimeInput,
   type RuntimeObservation,
 } from "../src/index.js";
@@ -24,12 +25,14 @@ describe("Amiberry runtime boundary", () => {
     await oracle.injectKeyboard("LEFT");
     await oracle.advanceFrame();
     await oracle.readState(["playerX"]);
+    await oracle.writeState({ playerX: 100 });
     expect(calls).toEqual([
       { operation: "load", payload: { executableArtifactId: artifactId } },
       { operation: "pause", payload: undefined },
       { operation: "inject-keyboard", payload: { input: "LEFT" } },
       { operation: "advance-frame", payload: undefined },
       { operation: "read-state", payload: { addresses: ["playerX"] } },
+      { operation: "write-state", payload: { state: { playerX: 100 } } },
     ]);
   });
 
@@ -49,11 +52,40 @@ describe("Amiberry runtime boundary", () => {
     expect(observations[0]!.state).not.toBe(observations[1]!.state);
   });
 
+  it("runs a one-frame state patch experiment in a fixed order", async () => {
+    let playerX = 10;
+    let input: RuntimeInput = "NONE";
+    const oracle = {
+      pause: async () => undefined,
+      writeState: async (state: Readonly<Record<string, number>>) => {
+        playerX = state.playerX ?? playerX;
+      },
+      injectKeyboard: async (nextInput: RuntimeInput) => { input = nextInput; },
+      advanceFrame: async () => {
+        playerX += input === "RIGHT" ? 2 : input === "LEFT" ? -2 : 0;
+      },
+      readState: async () => ({ playerX }),
+    };
+    await expect(runStatePatchExperiment(oracle, {
+      field: "playerX",
+      patchedValue: 100,
+      input: "RIGHT",
+      addresses: ["playerX"],
+    })).resolves.toEqual({ field: "playerX", input: "RIGHT", before: 10, patched: 100, after: 102, delta: 2 });
+  });
+
   it("rejects malformed state returned by the runtime", async () => {
     const oracle = new AmiberryRuntimeOracle({
       request: async <T>(): Promise<T> => ({ playerX: Infinity } as T),
     });
     await expect(oracle.readState(["playerX"])).rejects.toThrow();
+  });
+
+  it("rejects malformed state patches before sending them", async () => {
+    const request = async <T>(): Promise<T> => undefined as T;
+    const oracle = new AmiberryRuntimeOracle({ request });
+    await expect(oracle.writeState({ playerX: Number.NaN })).rejects.toThrow();
+    await expect(oracle.writeState({})).rejects.toThrow("cannot be empty");
   });
 
   it("maps HTTP transport requests and rejects failed responses", async () => {

@@ -6,7 +6,9 @@ import { horizontalMovementIRSchema, projectManifestSchema } from "@retroport/sc
 import {
   captureScenario,
   HttpAmiberryTransport,
+  runStatePatchExperiment,
   runtimeObservationSchema,
+  runtimeInputSchema,
   runtimeScenarioSchema,
   AmiberryRuntimeOracle,
 } from "@retroport/runtime-amiberry";
@@ -53,6 +55,10 @@ async function run(): Promise<void> {
     await runCapture(args);
     return;
   }
+  if (command === "experiment") {
+    await runExperiment(args);
+    return;
+  }
   if (command === "verify") {
     await runVerify(args);
     return;
@@ -62,7 +68,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -209,6 +215,27 @@ async function runCapture(args: string[]): Promise<void> {
     }
   }
   console.log(JSON.stringify(observations, null, 2));
+}
+
+async function runExperiment(args: string[]): Promise<void> {
+  const required = (option: string): string => {
+    const value = optionValue(args, option);
+    if (!value) throw new Error(`experiment requires ${option}`);
+    return value;
+  };
+  const addresses = required("--addresses").split(",").map((address) => address.trim()).filter(Boolean);
+  if (addresses.length === 0) throw new Error("experiment requires at least one --addresses value");
+  const patchedValue = Number(required("--value"));
+  if (!Number.isFinite(patchedValue)) throw new Error("experiment requires a finite numeric --value");
+  const oracle = new AmiberryRuntimeOracle(new HttpAmiberryTransport(required("--server")));
+  await oracle.load(required("--artifact"));
+  const result = await runStatePatchExperiment(oracle, {
+    field: required("--field"),
+    patchedValue,
+    input: runtimeInputSchema.parse(required("--input")),
+    addresses,
+  });
+  console.log(JSON.stringify(result, null, 2));
 }
 
 async function runVerify(args: string[]): Promise<void> {

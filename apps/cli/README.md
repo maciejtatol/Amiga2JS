@@ -23,6 +23,11 @@ Use `retroport grade --candidate <file.json> --ground-truth <file.json>` to
 compare a candidate with separately held source ground truth. The command
 blocks on field, input-mapping, or writer-address mismatches.
 
+Use `retroport experiment --server <url> --artifact <sha256:...> --field
+<address> --value <number> --input <LEFT|RIGHT|NONE> --addresses <list>` to
+run one controlled state-patch experiment and report the movement delta after
+exactly one frame.
+
 `retroport capture` always writes observations as JSON to stdout. Pass
 `--database captures.sqlite` to persist the same validated capture as an
 immutable, tick-ordered SQLite batch for later verification.
