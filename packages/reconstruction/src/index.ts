@@ -29,6 +29,22 @@ export const movementCandidateSchema = z.object({
 }).strict();
 export type MovementCandidate = z.infer<typeof movementCandidateSchema>;
 
+export const movementGroundTruthSchema = z.object({
+  field: z.string().min(1),
+  inputMapping: inputMappingSchema,
+  writerAddresses: z.array(z.string().min(1)),
+}).strict();
+export type MovementGroundTruth = z.infer<typeof movementGroundTruthSchema>;
+
+export const movementGradeSchema = z.object({
+  passed: z.boolean(),
+  fieldMatch: z.boolean(),
+  inputMappingMatch: z.boolean(),
+  writerAddressesMatch: z.boolean(),
+  concerns: z.array(z.string().min(1)),
+}).strict();
+export type MovementGrade = z.infer<typeof movementGradeSchema>;
+
 export const movementDiscoverySchema = z.object({
   candidates: z.array(movementCandidateSchema),
   selected: movementCandidateSchema.nullable(),
@@ -66,6 +82,48 @@ export function movementCandidateToIR(
   return horizontalMovementIRSchema.parse({
     ...metadata,
     inputMapping: candidate.inputMapping,
+  });
+}
+
+/** Grade a candidate against separately held source ground truth. */
+export function gradeHorizontalMovement(
+  candidateInput: MovementCandidate,
+  groundTruthInput: MovementGroundTruth,
+): AgentResult<MovementGrade> {
+  const candidate = movementCandidateSchema.parse(structuredClone(candidateInput));
+  const groundTruth = movementGroundTruthSchema.parse(structuredClone(groundTruthInput));
+  const fieldMatch = candidate.field === groundTruth.field;
+  const inputMappingMatch = candidate.inputMapping.left === groundTruth.inputMapping.left
+    && candidate.inputMapping.idle === groundTruth.inputMapping.idle
+    && candidate.inputMapping.right === groundTruth.inputMapping.right;
+  const candidateWriters = [...candidate.writerAddresses].sort(compare);
+  const groundTruthWriters = [...groundTruth.writerAddresses].sort(compare);
+  const writerAddressesMatch = candidateWriters.length === groundTruthWriters.length
+    && candidateWriters.every((address, index) => address === groundTruthWriters[index]);
+  const concerns = [
+    ...(fieldMatch ? [] : [`Expected field ${groundTruth.field}, got ${candidate.field}`]),
+    ...(inputMappingMatch ? [] : ["Candidate input mapping differs from ground truth"]),
+    ...(writerAddressesMatch ? [] : ["Candidate writer addresses differ from ground truth"]),
+  ];
+  const output = movementGradeSchema.parse({
+    passed: concerns.length === 0,
+    fieldMatch,
+    inputMappingMatch,
+    writerAddressesMatch,
+    concerns,
+  });
+  const matchedDimensions = [fieldMatch, inputMappingMatch, writerAddressesMatch].filter(Boolean).length;
+  return agentResultSchema(movementGradeSchema).parse({
+    status: output.passed ? "success" : "blocked",
+    output,
+    evidence: candidate.evidenceIds,
+    assumptions: [],
+    warnings: output.concerns.map((message) => ({ code: "reconstruction.ground-truth-mismatch", message })),
+    confidence: matchedDimensions / 3,
+    nextActions: output.passed ? [] : [{
+      description: "Review the candidate evidence and repeat reconstruction after resolving mismatches",
+      priority: "high",
+    }],
   });
 }
 

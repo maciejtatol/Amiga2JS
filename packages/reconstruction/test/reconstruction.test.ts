@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   analyzeHorizontalMovement,
+  gradeHorizontalMovement,
   movementCandidateToIR,
   reviewHorizontalMovement,
   type MovementCandidate,
@@ -67,6 +68,33 @@ describe("horizontal reconstruction agents", () => {
       tick: { unit: "frame", rateHz: 50 },
       inputMapping: { left: -2, idle: 0, right: 2 },
     });
+  });
+
+  it("grades the reviewed candidate against separate ground truth", () => {
+    const analysis = analyzeHorizontalMovement(observations, staticSnapshot);
+    const result = gradeHorizontalMovement(analysis.output.selected!, {
+      field: "playerX",
+      inputMapping: { left: -2, idle: 0, right: 2 },
+      writerAddresses: ["0x1000"],
+    });
+    expect(result.status).toBe("success");
+    expect(result.output.passed).toBe(true);
+  });
+
+  it("blocks grading when source ground truth disagrees", () => {
+    const analysis = analyzeHorizontalMovement(observations, staticSnapshot);
+    const result = gradeHorizontalMovement(analysis.output.selected!, {
+      field: "playerX",
+      inputMapping: { left: -1, idle: 0, right: 1 },
+      writerAddresses: ["0x2000"],
+    });
+    expect(result.status).toBe("blocked");
+    expect(result.output).toMatchObject({
+      passed: false,
+      inputMappingMatch: false,
+      writerAddressesMatch: false,
+    });
+    expect(result.nextActions[0]?.priority).toBe("high");
   });
 
   it("blocks incomplete evidence instead of guessing", () => {
