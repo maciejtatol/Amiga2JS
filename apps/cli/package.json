@@ -8,6 +8,7 @@
     "acceptance": "node --import tsx src/index.ts acceptance",
     "doctor": "node --import tsx src/index.ts doctor",
     "inspect": "node --import tsx src/index.ts inspect",
+    "preflight": "node --import tsx src/index.ts preflight",
     "reconstruct": "node --import tsx src/index.ts reconstruct",
     "generate": "node --import tsx src/index.ts generate",
     "grade": "node --import tsx src/index.ts grade",

@@ -15,7 +15,11 @@ import {
 import { runPhase0AcceptanceSuite, verifyScenario } from "@retroport/verification";
 import { generateSimulationSource, simulationStateSchema } from "@retroport/target-typescript";
 import { GhidraHeadlessAdapter, NodeHeadlessCommandRunner } from "@retroport/static-analysis";
-import { inspectHunk } from "@retroport/source-amiga-hunk";
+import {
+  fixtureManifestSchema,
+  inspectHunk,
+  verifyFixtureArtifact,
+} from "@retroport/source-amiga-hunk";
 import { runMicroFixturePipeline } from "@retroport/phase0-pipeline";
 import {
   analyzeHorizontalMovement,
@@ -38,6 +42,10 @@ async function run(): Promise<void> {
   }
   if (command === "inspect") {
     await runInspect(args);
+    return;
+  }
+  if (command === "preflight") {
+    await runPreflight(args);
     return;
   }
   if (command === "reconstruct") {
@@ -73,7 +81,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -111,6 +119,20 @@ async function runInspect(args: string[]): Promise<void> {
   const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
   const input = decodeHunkInput(await readFile(resolve(invocationDirectory, inputPath)));
   console.log(JSON.stringify(inspectHunk(input), null, 2));
+}
+
+async function runPreflight(args: string[]): Promise<void> {
+  const inputPath = optionValue(args, "--input");
+  const manifestPath = optionValue(args, "--manifest");
+  if (!inputPath || !manifestPath) {
+    throw new Error("preflight requires --input <file> and --manifest <file.json>");
+  }
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const input = decodeHunkInput(await readFile(resolve(invocationDirectory, inputPath)));
+  const manifest = fixtureManifestSchema.parse(JSON.parse(
+    await readFile(resolve(invocationDirectory, manifestPath), "utf8"),
+  ));
+  console.log(JSON.stringify(verifyFixtureArtifact(input, manifest), null, 2));
 }
 
 async function runReconstruct(args: string[]): Promise<void> {
