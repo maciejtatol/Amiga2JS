@@ -9,6 +9,7 @@
     "@retroport/reconstruction": "*",
     "@retroport/runtime-amiberry": "*",
     "@retroport/schemas": "*",
+    "@retroport/source-amiga-hunk": "*",
     "@retroport/static-analysis": "*",
     "@retroport/target-typescript": "*",
     "@retroport/verification": "*",

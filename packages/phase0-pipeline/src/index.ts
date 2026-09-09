@@ -17,6 +17,7 @@ import {
   type RuntimeInput,
   type RuntimeObservation,
 } from "@retroport/runtime-amiberry";
+import { runHorizontalMovement } from "@retroport/source-amiga-hunk";
 import type { AgentResult, HorizontalMovementIR } from "@retroport/schemas";
 import type { StaticAnalysisSnapshot } from "@retroport/static-analysis";
 import {
@@ -72,6 +73,50 @@ export interface Phase0PipelineResult {
   readonly verification: readonly VerificationReport[];
   readonly grade: AgentResult<MovementGrade> | null;
   readonly passed: boolean;
+}
+
+const microFixtureScenarios: readonly Phase0Scenario[] = [
+  { id: "constant-left", inputs: ["LEFT", "LEFT", "NONE"] },
+  { id: "constant-right", inputs: ["RIGHT", "RIGHT", "NONE"] },
+  { id: "constant-none", inputs: ["NONE", "NONE"] },
+];
+
+const microFixtureMetadata: MovementIRMetadata = {
+  tick: { unit: "frame", rateHz: 50 },
+  position: { bits: 16, signed: true },
+  velocity: { bits: 16, signed: true },
+  updateOrder: ["read-input", "set-velocity", "apply-velocity"],
+};
+
+function requiredStateValue(state: Readonly<Record<string, number>>, field: string): number {
+  const value = state[field];
+  if (value === undefined) throw new Error(`MicroFixture state is missing ${field}`);
+  return value;
+}
+
+const microFixtureStep: FixtureStep = (state, input) => ({
+  ...runHorizontalMovement({
+    name: "amiga-m68k-horizontal",
+    playerX: requiredStateValue(state, "playerX"),
+    velocityX: requiredStateValue(state, "velocityX"),
+    inputState: input,
+    tickCounter: requiredStateValue(state, "tickCounter"),
+  }),
+});
+
+/** Run the repository-owned fixture with its known verification metadata. */
+export function runMicroFixturePipeline(): Phase0PipelineResult {
+  return runPhase0Pipeline({
+    scenarios: microFixtureScenarios,
+    initialState: { playerX: 0, velocityX: 0, tickCounter: 0 },
+    step: microFixtureStep,
+    metadata: microFixtureMetadata,
+    groundTruth: {
+      field: "playerX",
+      inputMapping: { left: -2, idle: 0, right: 2 },
+      writerAddresses: [],
+    },
+  });
 }
 
 function collectObservations(

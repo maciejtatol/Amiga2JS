@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runPhase0Pipeline } from "../src/index.js";
+import { runMicroFixturePipeline, runPhase0Pipeline } from "../src/index.js";
 
 const scenarios = [
   { id: "left", inputs: ["LEFT", "LEFT", "NONE"] as const },
@@ -29,6 +29,13 @@ const step = (state: Readonly<Record<string, number>>, input: "LEFT" | "RIGHT" |
 };
 
 describe("Phase 0 pipeline", () => {
+  it("runs the repository-owned MicroFixture end to end", () => {
+    const result = runMicroFixturePipeline();
+    expect(result.passed).toBe(true);
+    expect(result.verification).toHaveLength(3);
+    expect(result.verification.every(({ passed }) => passed)).toBe(true);
+  });
+
   it("runs reconstruction through verification and grading", () => {
     const result = runPhase0Pipeline({
       scenarios,
