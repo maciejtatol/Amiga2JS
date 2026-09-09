@@ -83,6 +83,7 @@ a separate policy layer.
 10. HUNK inspection and a deterministic Ghidra headless exporter.
 11. Deterministic horizontal semantic reconstruction and isolated review.
 12. Explicit candidate-to-IR conversion and deterministic TypeScript emission.
+13. Ground-truth grading kept outside the analyst and reviewer inputs.
 
 The `@retroport/runtime-amiberry` package defines validated input and
 observation records, an injectable Amiberry transport, deterministic scenario
@@ -123,6 +124,11 @@ The `retroport generate` command emits deterministic TypeScript from validated
 movement IR. The existing `retroport verify` command then compares generated
 simulation behavior with captured observations and reports the first divergent
 tick and field.
+
+The `retroport grade` command compares an exported candidate with separately
+held source ground truth. Ground truth is supplied only to this final grading
+boundary, never to the analyst or reviewer, and any field, mapping, or writer
+mismatch blocks the result.
 
 The `retroport capture` command composes the Amiberry HTTP transport with the
 scenario runner. It validates the scenario and artifact ID before requesting

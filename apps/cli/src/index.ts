@@ -16,6 +16,7 @@ import { GhidraHeadlessAdapter, NodeHeadlessCommandRunner } from "@retroport/sta
 import { inspectHunk } from "@retroport/source-amiga-hunk";
 import {
   analyzeHorizontalMovement,
+  gradeHorizontalMovement,
   movementCandidateToIR,
   reviewHorizontalMovement,
 } from "@retroport/reconstruction";
@@ -44,6 +45,10 @@ async function run(): Promise<void> {
     await runGenerate(args);
     return;
   }
+  if (command === "grade") {
+    await runGrade(args);
+    return;
+  }
   if (command === "capture") {
     await runCapture(args);
     return;
@@ -57,7 +62,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport reconstruct ... | retroport generate ... | retroport analyze ... | retroport capture ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -118,6 +123,15 @@ async function runReconstruct(args: string[]): Promise<void> {
     ? movementCandidateToIR(analysis.output.selected, metadata)
     : null;
   const irOutputPath = optionValue(args, "--ir-output");
+  const candidateOutputPath = optionValue(args, "--candidate-output");
+  if (candidateOutputPath) {
+    if (!analysis.output.selected) throw new Error("reconstruct --candidate-output requires a successful analysis");
+    await writeFile(
+      resolve(invocationDirectory, candidateOutputPath),
+      `${JSON.stringify(analysis.output.selected, null, 2)}\n`,
+      "utf8",
+    );
+  }
   if (irOutputPath) {
     if (!ir) throw new Error("reconstruct --ir-output requires a successful review and --metadata");
     await writeFile(
@@ -136,6 +150,20 @@ async function runGenerate(args: string[]): Promise<void> {
   const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
   const ir = JSON.parse(await readFile(resolve(invocationDirectory, irPath), "utf8"));
   process.stdout.write(generateSimulationSource(ir));
+}
+
+async function runGrade(args: string[]): Promise<void> {
+  const candidatePath = optionValue(args, "--candidate");
+  const groundTruthPath = optionValue(args, "--ground-truth");
+  if (!candidatePath || !groundTruthPath) {
+    throw new Error("grade requires --candidate <file.json> and --ground-truth <file.json>");
+  }
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const candidate = JSON.parse(await readFile(resolve(invocationDirectory, candidatePath), "utf8"));
+  const groundTruth = JSON.parse(await readFile(resolve(invocationDirectory, groundTruthPath), "utf8"));
+  const result = gradeHorizontalMovement(candidate, groundTruth);
+  console.log(JSON.stringify(result, null, 2));
+  if (result.status !== "success") process.exitCode = 1;
 }
 
 async function runAnalyze(args: string[]): Promise<void> {

@@ -10,6 +10,7 @@
     "inspect": "node --import tsx src/index.ts inspect",
     "reconstruct": "node --import tsx src/index.ts reconstruct",
     "generate": "node --import tsx src/index.ts generate",
+    "grade": "node --import tsx src/index.ts grade",
     "typecheck": "tsc --project tsconfig.json"
   },
   "dependencies": {
