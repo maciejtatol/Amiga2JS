@@ -8,11 +8,13 @@
     "acceptance": "node --import tsx src/index.ts acceptance",
     "doctor": "node --import tsx src/index.ts doctor",
     "inspect": "node --import tsx src/index.ts inspect",
+    "reconstruct": "node --import tsx src/index.ts reconstruct",
     "typecheck": "tsc --project tsconfig.json"
   },
   "dependencies": {
     "@retroport/compatibility": "*",
     "@retroport/persistence": "*",
+    "@retroport/reconstruction": "*",
     "@retroport/runtime-amiberry": "*",
     "@retroport/schemas": "*",
     "@retroport/source-amiga-hunk": "*",

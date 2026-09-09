@@ -1,0 +1,14 @@
+{
+  "name": "@retroport/reconstruction",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run", "typecheck": "tsc --project tsconfig.json" },
+  "dependencies": {
+    "@retroport/runtime-amiberry": "*",
+    "@retroport/schemas": "*",
+    "@retroport/static-analysis": "*",
+    "zod": "3.25.67"
+  }
+}

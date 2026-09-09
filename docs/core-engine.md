@@ -81,6 +81,7 @@ a separate policy layer.
 8. Amiberry runtime boundary and deterministic observation capture.
 9. Durable SQLite storage for captured runtime observations and CLI integration.
 10. HUNK inspection and a deterministic Ghidra headless exporter.
+11. Deterministic horizontal semantic reconstruction and isolated review.
 
 The `@retroport/runtime-amiberry` package defines validated input and
 observation records, an injectable Amiberry transport, deterministic scenario
@@ -107,6 +108,12 @@ validated before it is printed.
 
 The `retroport inspect` command validates the repository's minimal HUNK shape
 before analysis and accepts either binary input or hexadecimal fixture files.
+
+The `@retroport/reconstruction` package provides a provider-neutral analyst and
+independent reviewer for the Phase 0 horizontal-movement claim. The analyst
+requires contiguous LEFT, RIGHT, and NONE deltas and correlates static writer
+functions when a snapshot is supplied. The reviewer replays those deltas
+independently and blocks inconsistent or incomplete evidence.
 
 The `retroport capture` command composes the Amiberry HTTP transport with the
 scenario runner. It validates the scenario and artifact ID before requesting
