@@ -8,7 +8,8 @@ exactly -2, +2, or 0 to `playerX`; positions and velocity use signed 16-bit
 wraparound, while `tickCounter` is an unsigned 32-bit counter. The HUNK is a
 synthetic encoded fixture for parser/reconstruction tests, not an executable
 Amiga program or a claim of native CPU behavior.
-Private ground truth is not included.
+Private ground truth is not included. `movement-ir.json` is the reviewed Phase
+0 IR used to exercise deterministic target generation and verification.
 
 Run `npm run build:fixture -w @retroport/source-amiga-hunk` to regenerate the
 artifact and manifest. The parser intentionally validates only this minimal
