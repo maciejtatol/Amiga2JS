@@ -86,6 +86,7 @@ a separate policy layer.
 13. Ground-truth grading kept outside the analyst and reviewer inputs.
 14. One-frame runtime state-patch experiment for causal movement checks.
 15. Local deterministic vertical-pipeline composition for CI.
+16. Artifact digest and HUNK-structure preflight before external analysis.
 
 The `@retroport/runtime-amiberry` package defines validated input and
 observation records, an injectable Amiberry transport, deterministic scenario
@@ -114,6 +115,10 @@ validated before it is printed.
 
 The `retroport inspect` command validates the repository's minimal HUNK shape
 before analysis and accepts either binary input or hexadecimal fixture files.
+
+The `retroport preflight` command additionally validates the artifact SHA-256
+against its manifest and returns the normalized HUNK summary. A digest mismatch
+blocks analysis before any external tool is invoked.
 
 The `@retroport/reconstruction` package provides a provider-neutral analyst and
 independent reviewer for the Phase 0 horizontal-movement claim. The analyst
