@@ -120,11 +120,20 @@ Run deterministic horizontal-movement reconstruction and independent review:
 ```sh
 retroport reconstruct \
   --observations path/to/observations.json \
-  --static path/to/static-snapshot.json
+  --static path/to/static-snapshot.json \
+  --metadata path/to/movement-metadata.json \
+  --ir-output movement-ir.json
 ```
 
 The static snapshot is optional; without it, writer-function correlation is
-unavailable but runtime deltas can still be analyzed.
+unavailable but runtime deltas can still be analyzed. Supplying explicit
+execution metadata also emits a validated `HorizontalMovementIR` in the
+result. `--ir-output` writes the IR as a standalone JSON file. Generate
+readable TypeScript from it with:
+
+```sh
+retroport generate --ir path/to/movement-ir.json > generated/movement.ts
+```
 
 Run the complete Phase 0 acceptance gate:
 
@@ -171,8 +180,9 @@ SQLite persistence, content-addressed artifacts, a YAML compatibility registry,
 and the `retroport doctor` diagnostic path. It also includes a synthetic HUNK
 fixture and strict parser, a deterministic Ghidra headless exporter boundary,
 an Amiberry runtime boundary with observation capture, and independent
-horizontal-movement reconstruction and review. Phaser, model-provider
-integration, and Superfrog reconstruction are not included yet.
+horizontal-movement reconstruction, review, IR conversion, and TypeScript
+generation. Phaser, model-provider integration, and Superfrog reconstruction
+are not included yet.
 
 ## Repository layout
 

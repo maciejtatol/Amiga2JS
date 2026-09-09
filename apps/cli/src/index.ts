@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { diagnoseProject, loadCompatibilityRules } from "@retroport/compatibility";
-import { projectManifestSchema } from "@retroport/schemas";
+import { horizontalMovementIRSchema, projectManifestSchema } from "@retroport/schemas";
 import {
   captureScenario,
   HttpAmiberryTransport,
@@ -11,11 +11,14 @@ import {
   AmiberryRuntimeOracle,
 } from "@retroport/runtime-amiberry";
 import { runPhase0AcceptanceSuite, verifyScenario } from "@retroport/verification";
-import { horizontalMovementIRSchema } from "@retroport/schemas";
-import { simulationStateSchema } from "@retroport/target-typescript";
+import { generateSimulationSource, simulationStateSchema } from "@retroport/target-typescript";
 import { GhidraHeadlessAdapter, NodeHeadlessCommandRunner } from "@retroport/static-analysis";
 import { inspectHunk } from "@retroport/source-amiga-hunk";
-import { analyzeHorizontalMovement, reviewHorizontalMovement } from "@retroport/reconstruction";
+import {
+  analyzeHorizontalMovement,
+  movementCandidateToIR,
+  reviewHorizontalMovement,
+} from "@retroport/reconstruction";
 
 function optionValue(args: string[], option: string): string | undefined {
   const index = args.indexOf(option);
@@ -37,6 +40,10 @@ async function run(): Promise<void> {
     await runReconstruct(args);
     return;
   }
+  if (command === "generate") {
+    await runGenerate(args);
+    return;
+  }
   if (command === "capture") {
     await runCapture(args);
     return;
@@ -50,7 +57,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport reconstruct ... | retroport analyze ... | retroport capture ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport reconstruct ... | retroport generate ... | retroport analyze ... | retroport capture ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -103,8 +110,32 @@ async function runReconstruct(args: string[]): Promise<void> {
     : JSON.parse(await readFile(resolve(invocationDirectory, staticPath), "utf8"));
   const analysis = analyzeHorizontalMovement(observations, staticSnapshot);
   const review = reviewHorizontalMovement(analysis.output.selected, observations);
-  console.log(JSON.stringify({ analysis, review }, null, 2));
+  const metadataPath = optionValue(args, "--metadata");
+  const metadata = metadataPath === undefined
+    ? undefined
+    : JSON.parse(await readFile(resolve(invocationDirectory, metadataPath), "utf8"));
+  const ir = analysis.status === "success" && review.status === "success" && analysis.output.selected && metadata
+    ? movementCandidateToIR(analysis.output.selected, metadata)
+    : null;
+  const irOutputPath = optionValue(args, "--ir-output");
+  if (irOutputPath) {
+    if (!ir) throw new Error("reconstruct --ir-output requires a successful review and --metadata");
+    await writeFile(
+      resolve(invocationDirectory, irOutputPath),
+      `${JSON.stringify(ir, null, 2)}\n`,
+      "utf8",
+    );
+  }
+  console.log(JSON.stringify({ analysis, review, ir }, null, 2));
   if (analysis.status !== "success" || review.status !== "success") process.exitCode = 1;
+}
+
+async function runGenerate(args: string[]): Promise<void> {
+  const irPath = optionValue(args, "--ir");
+  if (!irPath) throw new Error("generate requires --ir <file.json>");
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const ir = JSON.parse(await readFile(resolve(invocationDirectory, irPath), "utf8"));
+  process.stdout.write(generateSimulationSource(ir));
 }
 
 async function runAnalyze(args: string[]): Promise<void> {
