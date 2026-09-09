@@ -11,6 +11,7 @@
     "reconstruct": "node --import tsx src/index.ts reconstruct",
     "generate": "node --import tsx src/index.ts generate",
     "grade": "node --import tsx src/index.ts grade",
+    "experiment": "node --import tsx src/index.ts experiment",
     "typecheck": "tsc --project tsconfig.json"
   },
   "dependencies": {

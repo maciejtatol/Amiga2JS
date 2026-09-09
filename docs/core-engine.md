@@ -84,13 +84,16 @@ a separate policy layer.
 11. Deterministic horizontal semantic reconstruction and isolated review.
 12. Explicit candidate-to-IR conversion and deterministic TypeScript emission.
 13. Ground-truth grading kept outside the analyst and reviewer inputs.
+14. One-frame runtime state-patch experiment for causal movement checks.
 
 The `@retroport/runtime-amiberry` package defines validated input and
 observation records, an injectable Amiberry transport, deterministic scenario
 capture, and first-divergence comparison. Its repository port has both an
 in-memory implementation for fast tests and a SQLite implementation in
 `@retroport/persistence` for durable captures. It does not require an Amiberry
-installation in CI.
+installation in CI. It also exposes a one-frame state-patch experiment: the
+oracle pauses, records the baseline, applies one validated patch, advances one
+input/frame boundary, and reports the post-patch movement delta.
 
 The engine deliberately does not contain provider-specific APIs. Concrete
 adapters compose with the graph at the CLI boundary.

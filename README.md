@@ -145,6 +145,18 @@ retroport grade \
   --ground-truth path/to/ground-truth.json
 ```
 
+Run a controlled one-frame patch experiment against Amiberry:
+
+```sh
+retroport experiment \
+  --server http://127.0.0.1:8000 \
+  --artifact sha256:<64-hex-digest> \
+  --field playerX \
+  --value 100 \
+  --input RIGHT \
+  --addresses playerX
+```
+
 Run the complete Phase 0 acceptance gate:
 
 ```sh
@@ -189,7 +201,8 @@ validated schemas, a deterministic workflow engine, evidence gates, resumable
 SQLite persistence, content-addressed artifacts, a YAML compatibility registry,
 and the `retroport doctor` diagnostic path. It also includes a synthetic HUNK
 fixture and strict parser, a deterministic Ghidra headless exporter boundary,
-an Amiberry runtime boundary with observation capture, and independent
+an Amiberry runtime boundary with observation capture and one-frame state-patch
+experiments, and independent
 horizontal-movement reconstruction, review, IR conversion, and TypeScript
 generation. Phaser, model-provider integration, and Superfrog reconstruction
 are not included yet.
