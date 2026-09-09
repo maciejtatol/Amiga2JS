@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildMicroFixture, inspectHunk, runHorizontalMovement, stripHunk } from "../src/index.js";
+import {
+  buildMicroFixture,
+  inspectHunk,
+  runHorizontalMovement,
+  stripHunk,
+  verifyFixtureArtifact,
+} from "../src/index.js";
 
 describe("Amiga m68k horizontal fixture", () => {
   it("produces a stable HUNK artifact", () => {
@@ -36,6 +42,28 @@ describe("Amiga m68k horizontal fixture", () => {
     const manifest = JSON.parse(await readFile(new URL("manifest.json", fixture), "utf8"));
     expect(Buffer.from(artifact).toString("hex")).toBe(hex);
     expect(createHash("sha256").update(artifact).digest("hex")).toBe(manifest.sha256);
+  });
+
+  it("preflights the artifact digest and HUNK shape", async () => {
+    const fixture = new URL("../../../fixtures/amiga-m68k-horizontal/", import.meta.url);
+    const source = JSON.parse(await readFile(new URL("source.json", fixture), "utf8"));
+    const artifact = stripHunk(buildMicroFixture(source));
+    const manifest = JSON.parse(await readFile(new URL("manifest.json", fixture), "utf8"));
+    expect(verifyFixtureArtifact(artifact, manifest)).toMatchObject({
+      artifact: "build-stripped.hunk.hex",
+      byteLength: artifact.byteLength,
+      sha256: manifest.sha256,
+      hunk: { codeBytes: 20, hasSymbols: false, hasDebug: false },
+    });
+  });
+
+  it("rejects a digest mismatch before analysis", () => {
+    const artifact = stripHunk(buildMicroFixture({
+      name: "amiga-m68k-horizontal", playerX: 0, velocityX: 0, inputState: "NONE", tickCounter: 0,
+    }));
+    expect(() => verifyFixtureArtifact(artifact, {
+      source: "source.json", artifact: "fixture.hunk", sha256: "0".repeat(64),
+    })).toThrow("SHA-256 mismatch");
   });
 
   it.each([
