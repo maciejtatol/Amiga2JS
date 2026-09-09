@@ -72,6 +72,14 @@ retroport inspect \
   --input fixtures/amiga-m68k-horizontal/build-stripped.hunk.hex
 ```
 
+Validate an artifact's digest and HUNK structure before analysis:
+
+```sh
+retroport preflight \
+  --input fixtures/amiga-m68k-horizontal/build-stripped.hunk.hex \
+  --manifest fixtures/amiga-m68k-horizontal/manifest.json
+```
+
 Run a headless Ghidra export when Ghidra is installed:
 
 ```sh

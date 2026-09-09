@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 const HUNK_HEADER = 0x3f3;
@@ -30,6 +31,20 @@ export interface HunkSummary {
   readonly codeBytes: number;
   readonly hasSymbols: boolean;
   readonly hasDebug: boolean;
+}
+
+export const fixtureManifestSchema = z.object({
+  source: z.string().min(1),
+  artifact: z.string().min(1),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/i),
+}).strict();
+export type FixtureManifest = z.infer<typeof fixtureManifestSchema>;
+
+export interface FixturePreflightResult {
+  readonly artifact: string;
+  readonly sha256: string;
+  readonly byteLength: number;
+  readonly hunk: HunkSummary;
 }
 
 const words = (values: readonly number[]): Uint8Array => {
@@ -145,6 +160,24 @@ export function inspectHunk(binary: Uint8Array): HunkSummary {
   }
   if (!ended) throw new Error("HUNK binary has no END record");
   return { hunkTypes, codeBytes, hasSymbols, hasDebug };
+}
+
+/** Validate a fixture's digest and HUNK structure before external analysis. */
+export function verifyFixtureArtifact(
+  binary: Uint8Array,
+  manifestInput: FixtureManifest,
+): FixturePreflightResult {
+  const manifest = fixtureManifestSchema.parse(structuredClone(manifestInput));
+  const sha256 = createHash("sha256").update(binary).digest("hex");
+  if (sha256 !== manifest.sha256.toLowerCase()) {
+    throw new Error(`Fixture SHA-256 mismatch: expected ${manifest.sha256}, got ${sha256}`);
+  }
+  return {
+    artifact: manifest.artifact,
+    sha256,
+    byteLength: binary.byteLength,
+    hunk: inspectHunk(binary),
+  };
 }
 
 function validateHeader(input: readonly number[]): void {
