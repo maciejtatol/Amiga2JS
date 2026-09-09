@@ -85,6 +85,7 @@ a separate policy layer.
 12. Explicit candidate-to-IR conversion and deterministic TypeScript emission.
 13. Ground-truth grading kept outside the analyst and reviewer inputs.
 14. One-frame runtime state-patch experiment for causal movement checks.
+15. Local deterministic vertical-pipeline composition for CI.
 
 The `@retroport/runtime-amiberry` package defines validated input and
 observation records, an injectable Amiberry transport, deterministic scenario
@@ -132,6 +133,11 @@ The `retroport grade` command compares an exported candidate with separately
 held source ground truth. Ground truth is supplied only to this final grading
 boundary, never to the analyst or reviewer, and any field, mapping, or writer
 mismatch blocks the result.
+
+The `@retroport/phase0-pipeline` package composes the local fixture step,
+reconstruction, review, IR conversion, target generation, differential
+verification, and ground-truth grading. Its fixture step is injected so CI can
+exercise the full sequence without bundling Ghidra or Amiberry.
 
 The `retroport capture` command composes the Amiberry HTTP transport with the
 scenario runner. It validates the scenario and artifact ID before requesting

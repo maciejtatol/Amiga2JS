@@ -218,6 +218,7 @@ packages/
   evidence/                    Evidence persistence and queries
   compatibility/               Rules and capability diagnostics
   persistence/                  SQLite persistence and artifact storage
+  phase0-pipeline/              Local deterministic vertical-slice runner
   source-amiga-hunk/            Synthetic HUNK fixture builder and parser
   static-analysis/              Ghidra headless snapshot boundary
   runtime-amiberry/             Amiberry runtime-oracle boundary

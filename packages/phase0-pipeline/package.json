@@ -1,0 +1,17 @@
+{
+  "name": "@retroport/phase0-pipeline",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run", "typecheck": "tsc --project tsconfig.json" },
+  "dependencies": {
+    "@retroport/reconstruction": "*",
+    "@retroport/runtime-amiberry": "*",
+    "@retroport/schemas": "*",
+    "@retroport/static-analysis": "*",
+    "@retroport/target-typescript": "*",
+    "@retroport/verification": "*",
+    "zod": "3.25.67"
+  }
+}
