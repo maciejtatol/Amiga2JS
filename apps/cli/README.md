@@ -10,13 +10,18 @@ For headless static analysis, pass the repository's
 `tools/ghidra/RetroPortSnapshot.java` script to `retroport analyze`.
 
 Use `retroport reconstruct --observations <file.json> [--static <file.json>]
-[--metadata <file.json>] [--ir-output <file.json>]` to infer horizontal movement
-from contiguous runtime deltas and independently review the resulting
-candidate. With explicit execution metadata, the command emits a validated
-movement IR; `--ir-output` saves it as a standalone JSON file.
+[--metadata <file.json>] [--candidate-output <file.json>]
+[--ir-output <file.json>]` to infer horizontal movement from contiguous runtime
+deltas and independently review the resulting candidate. With explicit
+execution metadata, the command emits a validated movement IR; the output
+options save the candidate and IR as standalone JSON files.
 
 Use `retroport generate --ir <file.json>` to emit deterministic TypeScript from
 a validated movement IR.
+
+Use `retroport grade --candidate <file.json> --ground-truth <file.json>` to
+compare a candidate with separately held source ground truth. The command
+blocks on field, input-mapping, or writer-address mismatches.
 
 `retroport capture` always writes observations as JSON to stdout. Pass
 `--database captures.sqlite` to persist the same validated capture as an

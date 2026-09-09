@@ -122,6 +122,7 @@ retroport reconstruct \
   --observations path/to/observations.json \
   --static path/to/static-snapshot.json \
   --metadata path/to/movement-metadata.json \
+  --candidate-output movement-candidate.json \
   --ir-output movement-ir.json
 ```
 
@@ -133,6 +134,15 @@ readable TypeScript from it with:
 
 ```sh
 retroport generate --ir path/to/movement-ir.json > generated/movement.ts
+```
+
+Keep source ground truth outside the analyst input and grade the exported
+candidate independently:
+
+```sh
+retroport grade \
+  --candidate movement-candidate.json \
+  --ground-truth path/to/ground-truth.json
 ```
 
 Run the complete Phase 0 acceptance gate:
@@ -214,7 +224,7 @@ docs/                          Architecture and project documentation
    Amiberry automation server (the local provider-neutral boundaries are ready).
 2. Generate TypeScript from the reviewed movement claim and compare state tick
    by tick against captured observations.
-3. Grade the stripped fixture against source ground truth, then add an external
+3. Add a real stripped-fixture ground-truth export and then an external
    open-source Amiga fixture.
 
 Superfrog is a later real-world reference target, not the Phase 0 input.
