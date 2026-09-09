@@ -16,6 +16,7 @@ import { runPhase0AcceptanceSuite, verifyScenario } from "@retroport/verificatio
 import { generateSimulationSource, simulationStateSchema } from "@retroport/target-typescript";
 import { GhidraHeadlessAdapter, NodeHeadlessCommandRunner } from "@retroport/static-analysis";
 import { inspectHunk } from "@retroport/source-amiga-hunk";
+import { runMicroFixturePipeline } from "@retroport/phase0-pipeline";
 import {
   analyzeHorizontalMovement,
   gradeHorizontalMovement,
@@ -59,6 +60,10 @@ async function run(): Promise<void> {
     await runExperiment(args);
     return;
   }
+  if (command === "phase0") {
+    runPhase0();
+    return;
+  }
   if (command === "verify") {
     await runVerify(args);
     return;
@@ -68,7 +73,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -236,6 +241,18 @@ async function runExperiment(args: string[]): Promise<void> {
     addresses,
   });
   console.log(JSON.stringify(result, null, 2));
+}
+
+function runPhase0(): void {
+  const result = runMicroFixturePipeline();
+  console.log(JSON.stringify({
+    passed: result.passed,
+    analysis: result.analysis.status,
+    review: result.review.status,
+    grade: result.grade?.status ?? "not-run",
+    verification: result.verification.map(({ passed }, index) => ({ index, passed })),
+  }, null, 2));
+  if (!result.passed) process.exitCode = 1;
 }
 
 async function runVerify(args: string[]): Promise<void> {

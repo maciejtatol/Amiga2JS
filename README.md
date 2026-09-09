@@ -165,6 +165,13 @@ retroport acceptance
 
 This runs three independent 1,000-tick replays for LEFT, RIGHT, and NONE.
 
+Run the complete local vertical slice, including reconstruction, review,
+generation, differential verification, and ground-truth grading:
+
+```sh
+retroport phase0
+```
+
 ## What is Amiga2JS?
 
 Amiga2JS is an evidence-driven reverse-engineering project, not a

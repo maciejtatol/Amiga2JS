@@ -28,6 +28,9 @@ Use `retroport experiment --server <url> --artifact <sha256:...> --field
 run one controlled state-patch experiment and report the movement delta after
 exactly one frame.
 
+Use `retroport phase0` to run the repository-owned deterministic vertical slice
+without external services. It prints a concise gate summary suitable for CI.
+
 `retroport capture` always writes observations as JSON to stdout. Pass
 `--database captures.sqlite` to persist the same validated capture as an
 immutable, tick-ordered SQLite batch for later verification.
