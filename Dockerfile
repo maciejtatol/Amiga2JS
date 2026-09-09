@@ -11,6 +11,7 @@ COPY packages/compatibility/package.json packages/compatibility/package.json
 COPY packages/core/package.json packages/core/package.json
 COPY packages/evidence/package.json packages/evidence/package.json
 COPY packages/persistence/package.json packages/persistence/package.json
+COPY packages/phase0-pipeline/package.json packages/phase0-pipeline/package.json
 COPY packages/reconstruction/package.json packages/reconstruction/package.json
 COPY packages/runtime-amiberry/package.json packages/runtime-amiberry/package.json
 COPY packages/schemas/package.json packages/schemas/package.json
