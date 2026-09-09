@@ -87,6 +87,7 @@ a separate policy layer.
 14. One-frame runtime state-patch experiment for causal movement checks.
 15. Local deterministic vertical-pipeline composition for CI.
 16. Artifact digest and HUNK-structure preflight before external analysis.
+17. Reproducibility manifests linking every vertical-slice output digest.
 
 The `@retroport/runtime-amiberry` package defines validated input and
 observation records, an injectable Amiberry transport, deterministic scenario
@@ -119,6 +120,11 @@ before analysis and accepts either binary input or hexadecimal fixture files.
 The `retroport preflight` command additionally validates the artifact SHA-256
 against its manifest and returns the normalized HUNK summary. A digest mismatch
 blocks analysis before any external tool is invoked.
+
+The Phase 0 pipeline emits a stable run manifest containing the artifact ID and
+digests for static evidence, observations, analysis, review, IR, verification,
+grading, and generated source. The manifest intentionally excludes private
+ground truth and timestamps so repeated runs can be compared byte-for-byte.
 
 The `@retroport/reconstruction` package provides a provider-neutral analyst and
 independent reviewer for the Phase 0 horizontal-movement claim. The analyst
