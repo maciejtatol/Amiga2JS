@@ -12,11 +12,13 @@
     "generate": "node --import tsx src/index.ts generate",
     "grade": "node --import tsx src/index.ts grade",
     "experiment": "node --import tsx src/index.ts experiment",
+    "phase0": "node --import tsx src/index.ts phase0",
     "typecheck": "tsc --project tsconfig.json"
   },
   "dependencies": {
     "@retroport/compatibility": "*",
     "@retroport/persistence": "*",
+    "@retroport/phase0-pipeline": "*",
     "@retroport/reconstruction": "*",
     "@retroport/runtime-amiberry": "*",
     "@retroport/schemas": "*",
