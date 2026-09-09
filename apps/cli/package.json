@@ -9,6 +9,7 @@
     "doctor": "node --import tsx src/index.ts doctor",
     "inspect": "node --import tsx src/index.ts inspect",
     "reconstruct": "node --import tsx src/index.ts reconstruct",
+    "generate": "node --import tsx src/index.ts generate",
     "typecheck": "tsc --project tsconfig.json"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "@retroport/schemas": "*",
     "@retroport/source-amiga-hunk": "*",
     "@retroport/static-analysis": "*",
+    "@retroport/target-typescript": "*",
     "@retroport/verification": "*",
     "tsx": "4.20.3"
   }

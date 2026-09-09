@@ -50,7 +50,7 @@ export function generateSimulationSource(irInput: HorizontalMovementIR): string 
     "const signed16 = (value: number): number => ((value + 0x8000) & 0xffff) - 0x8000;",
     "",
     "export function step(state: State, input: Input): State {",
-    `  const velocityX = input === "LEFT" ? ${left} : input === "RIGHT" ? ${right} : ${idle};`,
+    `  const velocityX = signed16(input === "LEFT" ? ${left} : input === "RIGHT" ? ${right} : ${idle});`,
     "  return {",
     "    playerX: signed16(state.playerX + velocityX),",
     "    velocityX,",
@@ -58,5 +58,5 @@ export function generateSimulationSource(irInput: HorizontalMovementIR): string 
     "  };",
     "}",
     "",
-  ].join("\\n");
+  ].join("\n");
 }

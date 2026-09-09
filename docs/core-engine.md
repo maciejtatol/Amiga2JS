@@ -82,6 +82,7 @@ a separate policy layer.
 9. Durable SQLite storage for captured runtime observations and CLI integration.
 10. HUNK inspection and a deterministic Ghidra headless exporter.
 11. Deterministic horizontal semantic reconstruction and isolated review.
+12. Explicit candidate-to-IR conversion and deterministic TypeScript emission.
 
 The `@retroport/runtime-amiberry` package defines validated input and
 observation records, an injectable Amiberry transport, deterministic scenario
@@ -113,7 +114,15 @@ The `@retroport/reconstruction` package provides a provider-neutral analyst and
 independent reviewer for the Phase 0 horizontal-movement claim. The analyst
 requires contiguous LEFT, RIGHT, and NONE deltas and correlates static writer
 functions when a snapshot is supplied. The reviewer replays those deltas
-independently and blocks inconsistent or incomplete evidence.
+independently and blocks inconsistent or incomplete evidence. A reviewed
+candidate can be converted to `HorizontalMovementIR` only when explicit tick,
+numeric-width, and update-order metadata is supplied; this keeps generation
+from silently guessing execution semantics.
+
+The `retroport generate` command emits deterministic TypeScript from validated
+movement IR. The existing `retroport verify` command then compares generated
+simulation behavior with captured observations and reports the first divergent
+tick and field.
 
 The `retroport capture` command composes the Amiberry HTTP transport with the
 scenario runner. It validates the scenario and artifact ID before requesting

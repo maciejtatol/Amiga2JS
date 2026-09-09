@@ -5,7 +5,9 @@ import {
 } from "@retroport/runtime-amiberry";
 import {
   agentResultSchema,
+  horizontalMovementIRSchema,
   type AgentResult,
+  type HorizontalMovementIR,
 } from "@retroport/schemas";
 import {
   staticAnalysisSnapshotSchema,
@@ -23,7 +25,7 @@ export const movementCandidateSchema = z.object({
   field: z.string().min(1),
   inputMapping: inputMappingSchema,
   writerAddresses: z.array(z.string().min(1)),
-  evidenceIds: z.array(z.string().min(1)),
+  evidenceIds: z.array(z.string().min(1)).min(1),
 }).strict();
 export type MovementCandidate = z.infer<typeof movementCandidateSchema>;
 
@@ -40,6 +42,32 @@ export const movementReviewSchema = z.object({
   concerns: z.array(z.string().min(1)),
 }).strict();
 export type MovementReview = z.infer<typeof movementReviewSchema>;
+
+// These fields describe the execution model that runtime deltas cannot prove
+// on their own. Keeping them explicit prevents the bridge from inventing a
+// tick rate, numeric width, or update order during generation.
+export const movementIRMetadataSchema = z.object({
+  tick: z.object({ unit: z.literal("frame"), rateHz: z.number().positive() }).strict(),
+  position: z.object({ bits: z.literal(16), signed: z.literal(true) }).strict(),
+  velocity: z.object({ bits: z.literal(16), signed: z.literal(true) }).strict(),
+  updateOrder: z.tuple([
+    z.literal("read-input"), z.literal("set-velocity"), z.literal("apply-velocity"),
+  ]),
+}).strict();
+export type MovementIRMetadata = z.infer<typeof movementIRMetadataSchema>;
+
+/** Convert an approved candidate into IR only after its execution metadata is supplied. */
+export function movementCandidateToIR(
+  candidateInput: MovementCandidate,
+  metadataInput: MovementIRMetadata,
+): HorizontalMovementIR {
+  const candidate = movementCandidateSchema.parse(structuredClone(candidateInput));
+  const metadata = movementIRMetadataSchema.parse(structuredClone(metadataInput));
+  return horizontalMovementIRSchema.parse({
+    ...metadata,
+    inputMapping: candidate.inputMapping,
+  });
+}
 
 interface DeltaSamples {
   readonly LEFT: number[];

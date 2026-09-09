@@ -19,7 +19,10 @@ describe("TypeScript target", () => {
   });
 
   it("emits stable source from validated IR", () => {
-    expect(generateSimulationSource(ir)).toContain('velocityX = input === "LEFT" ? -2');
-    expect(generateSimulationSource(ir)).toBe(generateSimulationSource(structuredClone(ir)));
+    const source = generateSimulationSource(ir);
+    expect(source).toContain('velocityX = signed16(input === "LEFT" ? -2');
+    expect(source).toContain("\nexport interface State {");
+    expect(source).not.toContain("\\n");
+    expect(source).toBe(generateSimulationSource(structuredClone(ir)));
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   analyzeHorizontalMovement,
+  movementCandidateToIR,
   reviewHorizontalMovement,
   type MovementCandidate,
 } from "../src/index.js";
@@ -28,6 +29,15 @@ const observations: RuntimeObservation[] = [
     xrefs: [], strings: [], symbols: [], hardwareAccessCandidates: [],
   };
 
+const irMetadata = {
+  tick: { unit: "frame" as const, rateHz: 50 },
+  position: { bits: 16 as const, signed: true as const },
+  velocity: { bits: 16 as const, signed: true as const },
+  updateOrder: ["read-input", "set-velocity", "apply-velocity"] as [
+    "read-input", "set-velocity", "apply-velocity",
+  ],
+};
+
 describe("horizontal reconstruction agents", () => {
   it("infers one candidate and correlates its static writer", () => {
     const result = analyzeHorizontalMovement(observations, staticSnapshot);
@@ -49,6 +59,14 @@ describe("horizontal reconstruction agents", () => {
     const review = reviewHorizontalMovement(analysis.output.selected, observations);
     expect(review.status).toBe("success");
     expect(review.output).toMatchObject({ approved: true, candidateField: "playerX" });
+  });
+
+  it("bridges a candidate to IR only with explicit execution metadata", () => {
+    const analysis = analyzeHorizontalMovement(observations);
+    expect(movementCandidateToIR(analysis.output.selected!, irMetadata)).toMatchObject({
+      tick: { unit: "frame", rateHz: 50 },
+      inputMapping: { left: -2, idle: 0, right: 2 },
+    });
   });
 
   it("blocks incomplete evidence instead of guessing", () => {

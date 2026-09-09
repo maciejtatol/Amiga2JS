@@ -1,0 +1,24 @@
+{
+  "tick": {
+    "unit": "frame",
+    "rateHz": 50
+  },
+  "position": {
+    "bits": 16,
+    "signed": true
+  },
+  "velocity": {
+    "bits": 16,
+    "signed": true
+  },
+  "inputMapping": {
+    "left": -2,
+    "idle": 0,
+    "right": 2
+  },
+  "updateOrder": [
+    "read-input",
+    "set-velocity",
+    "apply-velocity"
+  ]
+}
