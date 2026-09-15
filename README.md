@@ -187,6 +187,10 @@ Captured observations from a real Amiberry run can enter the same pipeline via
 `runCapturedPhase0Pipeline`, preserving the reconstruction, verification, and
 grading gates used by the local fixture.
 
+For a command-line run, provide the captured JSON files to
+`retroport phase0-captured` along with the artifact digest, scenario definitions,
+initial state, execution metadata, and separately held ground truth.
+
 ## What is Amiga2JS?
 
 Amiga2JS is an evidence-driven reverse-engineering project, not a
