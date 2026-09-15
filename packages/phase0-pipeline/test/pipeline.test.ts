@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { runMicroFixturePipeline, runPhase0Pipeline } from "../src/index.js";
+import {
+  runCapturedPhase0Pipeline,
+  runMicroFixturePipeline,
+  runPhase0Pipeline,
+} from "../src/index.js";
 
 const scenarios = [
   { id: "left", inputs: ["LEFT", "LEFT", "NONE"] as const },
@@ -40,18 +44,19 @@ describe("Phase 0 pipeline", () => {
   });
 
   it("runs reconstruction through verification and grading", () => {
-    const result = runPhase0Pipeline({
+    const input = {
       artifactId,
       scenarios,
       initialState: { playerX: 0, velocityX: 0, tickCounter: 0 },
-      step,
       metadata,
       groundTruth: {
         field: "playerX",
         inputMapping: { left: -2, idle: 0, right: 2 },
         writerAddresses: [],
       },
-    });
+    };
+    const result = runPhase0Pipeline({ ...input, step });
+    const captured = runCapturedPhase0Pipeline({ ...input, observations: result.observations });
     expect(result.passed).toBe(true);
     expect(result.analysis.status).toBe("success");
     expect(result.review.status).toBe("success");
@@ -70,6 +75,7 @@ describe("Phase 0 pipeline", () => {
     expect(result.manifest.reviewDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(result.manifest.verificationDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(result.manifest.gradeDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(captured.manifest).toEqual(result.manifest);
   });
 
   it("blocks when the fixture does not cover all input channels", () => {
@@ -88,5 +94,38 @@ describe("Phase 0 pipeline", () => {
     expect(result.passed).toBe(false);
     expect(result.ir).toBeNull();
     expect(result.grade).toBeNull();
+  });
+
+  it("rejects observations that are not part of the requested scenarios", () => {
+    const result = runPhase0Pipeline({
+      artifactId,
+      scenarios,
+      initialState: { playerX: 0, velocityX: 0, tickCounter: 0 },
+      step,
+      metadata,
+      groundTruth: {
+        field: "playerX",
+        inputMapping: { left: -2, idle: 0, right: 2 },
+        writerAddresses: [],
+      },
+    });
+
+    expect(() => runCapturedPhase0Pipeline({
+      artifactId,
+      scenarios,
+      initialState: { playerX: 0, velocityX: 0, tickCounter: 0 },
+      observations: [...result.observations, {
+        scenarioId: "unknown",
+        tick: 0,
+        input: "NONE",
+        state: { playerX: 0, velocityX: 0, tickCounter: 1 },
+      }],
+      metadata,
+      groundTruth: {
+        field: "playerX",
+        inputMapping: { left: -2, idle: 0, right: 2 },
+        writerAddresses: [],
+      },
+    })).toThrow("Captured observations contain an unknown scenario");
   });
 });
