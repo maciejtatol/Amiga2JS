@@ -14,6 +14,7 @@
     "grade": "node --import tsx src/index.ts grade",
     "experiment": "node --import tsx src/index.ts experiment",
     "phase0": "node --import tsx src/index.ts phase0",
+    "phase0-captured": "node --import tsx src/index.ts phase0-captured",
     "typecheck": "tsc --project tsconfig.json"
   },
   "dependencies": {

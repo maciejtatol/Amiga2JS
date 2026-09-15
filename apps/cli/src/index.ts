@@ -14,17 +14,26 @@ import {
 } from "@retroport/runtime-amiberry";
 import { runPhase0AcceptanceSuite, verifyScenario } from "@retroport/verification";
 import { generateSimulationSource, simulationStateSchema } from "@retroport/target-typescript";
-import { GhidraHeadlessAdapter, NodeHeadlessCommandRunner } from "@retroport/static-analysis";
+import {
+  GhidraHeadlessAdapter,
+  NodeHeadlessCommandRunner,
+  staticAnalysisSnapshotSchema,
+} from "@retroport/static-analysis";
 import {
   fixtureManifestSchema,
   inspectHunk,
   verifyFixtureArtifact,
 } from "@retroport/source-amiga-hunk";
-import { runMicroFixturePipeline } from "@retroport/phase0-pipeline";
+import {
+  runCapturedPhase0Pipeline,
+  runMicroFixturePipeline,
+} from "@retroport/phase0-pipeline";
 import {
   analyzeHorizontalMovement,
   gradeHorizontalMovement,
   movementCandidateToIR,
+  movementGroundTruthSchema,
+  movementIRMetadataSchema,
   reviewHorizontalMovement,
 } from "@retroport/reconstruction";
 
@@ -72,6 +81,10 @@ async function run(): Promise<void> {
     runPhase0();
     return;
   }
+  if (command === "phase0-captured") {
+    await runCapturedPhase0(args);
+    return;
+  }
   if (command === "verify") {
     await runVerify(args);
     return;
@@ -81,7 +94,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -145,7 +158,9 @@ async function runReconstruct(args: string[]): Promise<void> {
   const staticPath = optionValue(args, "--static");
   const staticSnapshot = staticPath === undefined
     ? undefined
-    : JSON.parse(await readFile(resolve(invocationDirectory, staticPath), "utf8"));
+    : staticAnalysisSnapshotSchema.parse(JSON.parse(
+      await readFile(resolve(invocationDirectory, staticPath), "utf8"),
+    ));
   const analysis = analyzeHorizontalMovement(observations, staticSnapshot);
   const review = reviewHorizontalMovement(analysis.output.selected, observations);
   const metadataPath = optionValue(args, "--metadata");
@@ -267,6 +282,48 @@ async function runExperiment(args: string[]): Promise<void> {
 
 function runPhase0(): void {
   const result = runMicroFixturePipeline();
+  console.log(JSON.stringify({
+    passed: result.passed,
+    manifest: result.manifest,
+    analysis: result.analysis.status,
+    review: result.review.status,
+    grade: result.grade?.status ?? "not-run",
+    verification: result.verification.map(({ passed }, index) => ({ index, passed })),
+  }, null, 2));
+  if (!result.passed) process.exitCode = 1;
+}
+
+async function runCapturedPhase0(args: string[]): Promise<void> {
+  const required = (option: string): string => {
+    const value = optionValue(args, option);
+    if (!value) throw new Error(`phase0-captured requires ${option}`);
+    return value;
+  };
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const readJson = async (option: string): Promise<unknown> =>
+    JSON.parse(await readFile(resolve(invocationDirectory, required(option)), "utf8"));
+
+  const scenarios = runtimeScenarioSchema.array().parse(await readJson("--scenarios"));
+  const observations = runtimeObservationSchema.array().parse(await readJson("--observations"));
+  const initialState = simulationStateSchema.parse(await readJson("--initial-state"));
+  const metadata = movementIRMetadataSchema.parse(await readJson("--metadata"));
+  const groundTruth = movementGroundTruthSchema.parse(await readJson("--ground-truth"));
+  const staticPath = optionValue(args, "--static");
+  const staticSnapshot = staticPath === undefined
+    ? undefined
+    : staticAnalysisSnapshotSchema.parse(JSON.parse(
+      await readFile(resolve(invocationDirectory, staticPath), "utf8"),
+    ));
+  const pipelineInput = {
+    artifactId: required("--artifact"),
+    scenarios,
+    initialState,
+    observations,
+    metadata,
+    groundTruth,
+    ...(staticSnapshot === undefined ? {} : { staticSnapshot }),
+  };
+  const result = runCapturedPhase0Pipeline(pipelineInput);
   console.log(JSON.stringify({
     passed: result.passed,
     manifest: result.manifest,

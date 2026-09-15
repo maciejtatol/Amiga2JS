@@ -34,6 +34,13 @@ exactly one frame.
 Use `retroport phase0` to run the repository-owned deterministic vertical slice
 without external services. It prints a concise gate summary suitable for CI.
 
+Use `retroport phase0-captured --artifact <sha256:...> --scenarios
+scenarios.json --initial-state initial-state.json --observations observations.json
+--metadata movement-metadata.json --ground-truth ground-truth.json [--static
+snapshot.json]` to run the same pipeline over observations captured from an
+external Amiberry oracle. The command prints the manifest and exits non-zero
+when reconstruction, verification, or grading is blocked.
+
 `retroport capture` always writes observations as JSON to stdout. Pass
 `--database captures.sqlite` to persist the same validated capture as an
 immutable, tick-ordered SQLite batch for later verification.
