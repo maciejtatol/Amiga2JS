@@ -2,12 +2,15 @@
 
 Command-line entry point for RetroPort workflows.
 
-The CLI exposes the compatibility doctor, HUNK inspection, static-analysis
+The CLI exposes the compatibility doctor, ADF/HUNK inspection, static-analysis
 export, deterministic reconstruction/review, Amiberry capture, Semantic IR
 verification, and the Phase 0 acceptance gate.
 
 Use `retroport preflight --input <file> --manifest <file.json>` to verify an
 artifact's SHA-256 digest and HUNK structure before handing it to Ghidra.
+
+Use `retroport inspect-adf --input <file.adf>` to inspect ADF geometry, boot
+and root-block signals, packer/protection markers, and SHA-1/SHA-256 digests.
 
 For headless static analysis, pass the repository's
 `tools/ghidra/RetroPortSnapshot.java` script to `retroport analyze`.

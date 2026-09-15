@@ -245,6 +245,7 @@ packages/
   compatibility/               Rules and capability diagnostics
   persistence/                  SQLite persistence and artifact storage
   phase0-pipeline/              Local deterministic vertical-slice runner
+  source-amiga-adf/             ADF intake and provenance inspection
   source-amiga-hunk/            Synthetic HUNK fixture builder and parser
   static-analysis/              Ghidra headless snapshot boundary
   runtime-amiberry/             Amiberry runtime-oracle boundary
@@ -260,11 +261,19 @@ docs/                          Architecture and project documentation
 
 ## Roadmap
 
-1. Run the complete vertical slice against a real Ghidra installation and
-   Amiberry automation server (the local provider-neutral boundaries are ready).
-2. Generate TypeScript from the reviewed movement claim and compare state tick
-   by tick against captured observations.
-3. Add a real stripped-fixture ground-truth export and then an external
+See [the phase plan](docs/phase-plan.md) for the conversion boundary and the
+disk-image/multi-disk work required before a real commercial game can be used.
+
+1. Add local ADF intake, provenance, filesystem/protection inspection, and
+   executable extraction without committing proprietary disk images. The
+   `retroport inspect-adf` intake command is now available; extraction remains
+   Amiga-aware/emulator-assisted work.
+2. Add a multi-disk set manifest and Amiberry disk-swap capture events.
+3. Run the complete vertical slice against a real Ghidra installation and
+   Amiberry automation server (the provider-neutral boundaries are ready).
+4. Generate TypeScript from reviewed claims and compare state tick by tick
+   against captured observations.
+5. Add a real stripped-fixture ground-truth export and then an external
    open-source Amiga fixture.
 
 Superfrog is a later real-world reference target, not the Phase 0 input.
