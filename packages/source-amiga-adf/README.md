@@ -7,6 +7,9 @@ protection/packer markers, and reproducible SHA-1/SHA-256 digests.
 `inspectAdfSet` and the `retroport inspect-adf-set` command additionally check
 disk numbering, missing/duplicate members, and consistent image geometry.
 
+`createAdfSetManifest` produces a versioned JSON contract containing the set's
+provenance, per-disk digests, inspection results, and validation issues.
+
 This package deliberately does not unpack custom loaders or claim that an ADF
 is a HUNK executable. Extraction remains a later Amiga-aware or emulator-
 assisted phase.

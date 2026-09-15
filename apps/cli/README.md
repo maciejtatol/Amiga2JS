@@ -16,6 +16,11 @@ Use `retroport inspect-adf-set --input-dir <directory> [--expected-disks N]`
 to validate disk numbering, completeness, and consistent geometry before
 attempting extraction.
 
+Use `retroport write-adf-manifest --input-dir <directory> --output <file.json>
+--set-id <id> --title <title> --source <reference> --license-status
+<owned-dump|authorized|redistributable|unknown>` to persist the inspection and
+provenance record. `--tool` and `--notes` are optional.
+
 For headless static analysis, pass the repository's
 `tools/ghidra/RetroPortSnapshot.java` script to `retroport analyze`.
 
