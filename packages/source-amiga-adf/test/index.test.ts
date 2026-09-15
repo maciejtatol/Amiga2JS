@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { inspectAdf, inspectAdfSet, parseAdfDiskNumber } from "../src/index.js";
+import {
+  createAdfSetManifest,
+  inspectAdf,
+  inspectAdfSet,
+  parseAdfDiskNumber,
+} from "../src/index.js";
 
 const ddBytes = 80 * 2 * 11 * 512;
 
@@ -96,5 +101,27 @@ describe("ADF disk sets", () => {
 
     expect(result.valid).toBe(false);
     expect(result.issues[0]?.code).toBe("DUPLICATE_DISK_NUMBER");
+  });
+
+  it("creates a versioned manifest with provenance and digests", () => {
+    const image = new Uint8Array(ddBytes);
+    const inspection = inspectAdfSet([
+      { fileName: "Game_1.adf", diskNumber: 1, input: image },
+    ], 1);
+    const manifest = createAdfSetManifest({
+      setId: "game-v1",
+      title: "Game v1",
+      provenance: { source: "local-dump", licenseStatus: "owned-dump", tool: "ADF tool" },
+      inspection,
+    });
+
+    expect(manifest).toMatchObject({
+      schemaVersion: 1,
+      setId: "game-v1",
+      provenance: { licenseStatus: "owned-dump" },
+      expectedDiskCount: 1,
+      validation: { complete: true, valid: true, issues: [] },
+    });
+    expect(manifest.disks[0]!.inspection.sha256).toHaveLength(64);
   });
 });

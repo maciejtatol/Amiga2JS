@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { z } from "zod";
 
 const DD_BYTES = 80 * 2 * 11 * 512;
 const HD_BYTES = 80 * 2 * 22 * 512;
@@ -59,6 +60,56 @@ export interface AdfSetInspection {
   readonly valid: boolean;
   readonly issues: readonly AdfSetIssue[];
 }
+
+export const adfLicenseStatusSchema = z.enum([
+  "owned-dump", "authorized", "redistributable", "unknown",
+]);
+export type AdfLicenseStatus = z.infer<typeof adfLicenseStatusSchema>;
+
+export const adfProvenanceSchema = z.object({
+  source: z.string().min(1),
+  licenseStatus: adfLicenseStatusSchema,
+  tool: z.string().min(1).optional(),
+  notes: z.string().min(1).optional(),
+}).strict();
+export type AdfProvenance = z.infer<typeof adfProvenanceSchema>;
+
+const adfInspectionSchema = z.object({
+  byteLength: z.number().int().positive(),
+  sectorCount: z.number().int().positive(),
+  geometry: z.enum(["standard-dd", "standard-hd", "non-standard"]),
+  sha1: z.string().regex(/^[0-9a-f]{40}$/),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  bootSignature: z.string().length(4).nullable(),
+  bootable: z.boolean(),
+  rootBlock: z.number().int().nonnegative().nullable(),
+  rootBlockType: z.number().int().nonnegative().nullable(),
+  contentKind: z.enum(["amigados", "custom-boot", "raw-or-packed"]),
+  detectedMarkers: z.array(z.string()),
+}).strict();
+
+export const adfSetManifestSchema = z.object({
+  schemaVersion: z.literal(1),
+  setId: z.string().min(1),
+  title: z.string().min(1),
+  provenance: adfProvenanceSchema,
+  expectedDiskCount: z.number().int().positive(),
+  disks: z.array(z.object({
+    fileName: z.string().min(1),
+    diskNumber: z.number().int().positive().nullable(),
+    inspection: adfInspectionSchema,
+  }).strict()).min(1),
+  validation: z.object({
+    complete: z.boolean(),
+    valid: z.boolean(),
+    issues: z.array(z.object({
+      code: z.string().min(1),
+      message: z.string().min(1),
+      fileName: z.string().min(1).nullable(),
+    }).strict()),
+  }).strict(),
+}).strict();
+export type AdfSetManifest = z.infer<typeof adfSetManifestSchema>;
 
 function asciiAt(input: Uint8Array, offset: number, length: number): string | null {
   if (offset < 0 || offset + length > input.length) return null;
@@ -209,4 +260,27 @@ export function inspectAdfSet(
     valid: issues.length === 0,
     issues,
   };
+}
+
+/** Build a reviewable, hash-preserving manifest from an ADF set inspection. */
+export function createAdfSetManifest(input: {
+  readonly setId: string;
+  readonly title: string;
+  readonly provenance: AdfProvenance;
+  readonly inspection: AdfSetInspection;
+}): AdfSetManifest {
+  const provenance = adfProvenanceSchema.parse(structuredClone(input.provenance));
+  return adfSetManifestSchema.parse({
+    schemaVersion: 1,
+    setId: input.setId,
+    title: input.title,
+    provenance,
+    expectedDiskCount: input.inspection.expectedDiskCount,
+    disks: input.inspection.disks,
+    validation: {
+      complete: input.inspection.complete,
+      valid: input.inspection.valid,
+      issues: input.inspection.issues,
+    },
+  });
 }
