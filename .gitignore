@@ -12,5 +12,17 @@ coverage/
 .env.*
 !.env.example
 
+# Commercial/proprietary disk images stay local; commit metadata and hashes only.
+*.adf
+*.ipf
+*.hdf
+!fixtures/**/*.adf
+!fixtures/**/*.ipf
+!fixtures/**/*.hdf
+
 .retroport/
 .ai-generated/
+
+# Local commercial ADF collections (for example, Superfrog disk sets).
+ADF games/
+downloads_superfrog_ADFs.zip

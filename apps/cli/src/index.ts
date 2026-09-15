@@ -24,6 +24,7 @@ import {
   inspectHunk,
   verifyFixtureArtifact,
 } from "@retroport/source-amiga-hunk";
+import { inspectAdf } from "@retroport/source-amiga-adf";
 import {
   runCapturedPhase0Pipeline,
   runMicroFixturePipeline,
@@ -51,6 +52,10 @@ async function run(): Promise<void> {
   }
   if (command === "inspect") {
     await runInspect(args);
+    return;
+  }
+  if (command === "inspect-adf") {
+    await runInspectAdf(args);
     return;
   }
   if (command === "preflight") {
@@ -94,7 +99,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -132,6 +137,15 @@ async function runInspect(args: string[]): Promise<void> {
   const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
   const input = decodeHunkInput(await readFile(resolve(invocationDirectory, inputPath)));
   console.log(JSON.stringify(inspectHunk(input), null, 2));
+}
+
+async function runInspectAdf(args: string[]): Promise<void> {
+  const inputPath = optionValue(args, "--input");
+  if (!inputPath) throw new Error("inspect-adf requires --input <file>");
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const resolvedPath = resolve(invocationDirectory, inputPath);
+  const inspection = inspectAdf(await readFile(resolvedPath));
+  console.log(JSON.stringify({ file: inputPath, ...inspection }, null, 2));
 }
 
 async function runPreflight(args: string[]): Promise<void> {
