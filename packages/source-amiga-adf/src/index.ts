@@ -61,6 +61,16 @@ export interface AdfSetInspection {
   readonly issues: readonly AdfSetIssue[];
 }
 
+export type AdfExtractionStatus = "filesystem-ready" | "requires-emulator" | "unsupported";
+export type AdfExtractionMethod = "amigados-tool" | "emulator-boot-capture" | "blocked";
+
+export interface AdfExtractionPlan {
+  readonly status: AdfExtractionStatus;
+  readonly method: AdfExtractionMethod;
+  readonly reason: string;
+  readonly nextActions: readonly string[];
+}
+
 export const adfLicenseStatusSchema = z.enum([
   "owned-dump", "authorized", "redistributable", "unknown",
 ]);
@@ -173,6 +183,32 @@ export function inspectAdf(input: Uint8Array): AdfInspection {
     rootBlockType,
     contentKind,
     detectedMarkers,
+  };
+}
+
+/** Select a safe extraction boundary without interpreting executable bytes. */
+export function planAdfExtraction(inspection: AdfInspection): AdfExtractionPlan {
+  if (inspection.contentKind === "amigados") {
+    return {
+      status: "filesystem-ready",
+      method: "amigados-tool",
+      reason: "A conventional AmigaDOS root block is present.",
+      nextActions: ["Run an AmigaDOS-aware extractor such as ADFlib/unadf.", "Validate extracted files before HUNK preflight."],
+    };
+  }
+  if (inspection.bootable || inspection.detectedMarkers.length > 0) {
+    return {
+      status: "requires-emulator",
+      method: "emulator-boot-capture",
+      reason: "The image uses custom boot code or packed/protection markers.",
+      nextActions: ["Boot the image in an Amiga emulator with the matching configuration.", "Capture loader memory and disk-swap events.", "Run HUNK preflight only on an extracted executable."],
+    };
+  }
+  return {
+    status: "unsupported",
+    method: "blocked",
+    reason: "No supported AmigaDOS structure or recognized boot path was detected.",
+    nextActions: ["Obtain a complete image dump or add a format-specific decoder."],
   };
 }
 

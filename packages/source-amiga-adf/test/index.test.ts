@@ -3,6 +3,7 @@ import {
   createAdfSetManifest,
   inspectAdf,
   inspectAdfSet,
+  planAdfExtraction,
   parseAdfDiskNumber,
 } from "../src/index.js";
 
@@ -57,6 +58,27 @@ describe("inspectAdf", () => {
 
   it("rejects an empty image", () => {
     expect(() => inspectAdf(new Uint8Array())).toThrow("ADF input must not be empty");
+  });
+
+  it("selects an external filesystem extractor for AmigaDOS images", () => {
+    const image = new Uint8Array(ddBytes);
+    image.set([0x44, 0x4f, 0x53, 0x00]);
+    new DataView(image.buffer).setUint32(880 * 512, 2, false);
+
+    expect(planAdfExtraction(inspectAdf(image))).toMatchObject({
+      status: "filesystem-ready",
+      method: "amigados-tool",
+    });
+  });
+
+  it("requires emulator capture for custom boot images", () => {
+    const image = new Uint8Array(ddBytes);
+    image.set([0x44, 0x4f, 0x53, 0x00]);
+
+    expect(planAdfExtraction(inspectAdf(image))).toMatchObject({
+      status: "requires-emulator",
+      method: "emulator-boot-capture",
+    });
   });
 });
 

@@ -10,6 +10,10 @@ disk numbering, missing/duplicate members, and consistent image geometry.
 `createAdfSetManifest` produces a versioned JSON contract containing the set's
 provenance, per-disk digests, inspection results, and validation issues.
 
+`planAdfExtraction` explicitly distinguishes filesystem extraction from images
+that require emulator-assisted loader capture. It never labels raw disk bytes
+as an executable.
+
 This package deliberately does not unpack custom loaders or claim that an ADF
 is a HUNK executable. Extraction remains a later Amiga-aware or emulator-
 assisted phase.

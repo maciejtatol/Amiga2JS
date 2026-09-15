@@ -21,6 +21,10 @@ Use `retroport write-adf-manifest --input-dir <directory> --output <file.json>
 <owned-dump|authorized|redistributable|unknown>` to persist the inspection and
 provenance record. `--tool` and `--notes` are optional.
 
+Use `retroport plan-adf-extraction --input <file.adf>` to select the next safe
+extraction boundary. Custom boot or packed images return a non-zero status and
+identify the emulator-assisted actions still required.
+
 For headless static analysis, pass the repository's
 `tools/ghidra/RetroPortSnapshot.java` script to `retroport analyze`.
 

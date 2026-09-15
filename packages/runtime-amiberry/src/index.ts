@@ -3,6 +3,9 @@ import { z } from "zod";
 export const runtimeInputSchema = z.enum(["LEFT", "RIGHT", "NONE"]);
 export type RuntimeInput = z.infer<typeof runtimeInputSchema>;
 export const executableArtifactIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/);
+export const floppyDriveSchema = z.number().int().min(0).max(3);
+export type FloppyDrive = z.infer<typeof floppyDriveSchema>;
+export const diskArtifactIdSchema = executableArtifactIdSchema;
 
 export const runtimeScenarioSchema = z.object({
   id: z.string().min(1),
@@ -40,6 +43,14 @@ export const statePatchResultSchema = z.object({
 }).strict();
 export type StatePatchResult = z.infer<typeof statePatchResultSchema>;
 
+export const diskSwapStateSchema = z.object({
+  drives: z.array(z.object({
+    drive: floppyDriveSchema,
+    artifactId: diskArtifactIdSchema.nullable(),
+  }).strict()),
+}).strict();
+export type DiskSwapState = z.infer<typeof diskSwapStateSchema>;
+
 export interface ObservationMismatch {
   readonly tick: number;
   readonly field: string;
@@ -54,6 +65,9 @@ export interface RuntimeObservationRepository {
 
 export interface RuntimeOracle {
   load(executableArtifactId: string): Promise<void>;
+  insertFloppy(drive: FloppyDrive, artifactId: string): Promise<void>;
+  ejectFloppy(drive: FloppyDrive): Promise<void>;
+  queryDiskSwap(): Promise<DiskSwapState>;
   pause(): Promise<void>;
   resume(): Promise<void>;
   advanceFrame(): Promise<void>;
@@ -95,6 +109,22 @@ export class AmiberryRuntimeOracle implements RuntimeOracle {
   async load(executableArtifactId: string): Promise<void> {
     const artifactId = executableArtifactIdSchema.parse(executableArtifactId);
     await this.transport.request("load", { executableArtifactId: artifactId });
+  }
+
+  async insertFloppy(driveInput: FloppyDrive, artifactIdInput: string): Promise<void> {
+    const drive = floppyDriveSchema.parse(driveInput);
+    const artifactId = diskArtifactIdSchema.parse(artifactIdInput);
+    await this.transport.request("insert-floppy", { drive, artifactId });
+  }
+
+  async ejectFloppy(driveInput: FloppyDrive): Promise<void> {
+    const drive = floppyDriveSchema.parse(driveInput);
+    await this.transport.request("eject-floppy", { drive });
+  }
+
+  async queryDiskSwap(): Promise<DiskSwapState> {
+    const state = await this.transport.request<unknown>("query-disk-swap");
+    return diskSwapStateSchema.parse(state);
   }
 
   async pause(): Promise<void> {
