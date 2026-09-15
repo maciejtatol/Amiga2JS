@@ -9,6 +9,7 @@
     "doctor": "node --import tsx src/index.ts doctor",
     "inspect": "node --import tsx src/index.ts inspect",
     "inspect-adf": "node --import tsx src/index.ts inspect-adf",
+    "inspect-adf-set": "node --import tsx src/index.ts inspect-adf-set",
     "preflight": "node --import tsx src/index.ts preflight",
     "reconstruct": "node --import tsx src/index.ts reconstruct",
     "generate": "node --import tsx src/index.ts generate",
