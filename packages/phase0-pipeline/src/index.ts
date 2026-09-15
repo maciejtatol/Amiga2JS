@@ -81,6 +81,17 @@ export interface Phase0PipelineInput {
   readonly staticSnapshot?: StaticAnalysisSnapshot;
 }
 
+/** Inputs for a run whose observations were captured by an external oracle. */
+export interface CapturedPhase0PipelineInput {
+  readonly artifactId: string;
+  readonly scenarios: readonly Phase0Scenario[];
+  readonly initialState: SimulationState;
+  readonly observations: readonly RuntimeObservation[];
+  readonly metadata: MovementIRMetadata;
+  readonly groundTruth: MovementGroundTruth;
+  readonly staticSnapshot?: StaticAnalysisSnapshot;
+}
+
 export interface Phase0PipelineResult {
   readonly manifest: Phase0RunManifest;
   readonly observations: readonly RuntimeObservation[];
@@ -175,10 +186,30 @@ function collectObservations(
 
 /** Run every local Phase 0 boundary without requiring external services. */
 export function runPhase0Pipeline(input: Phase0PipelineInput): Phase0PipelineResult {
+  const observations = collectObservations(input.scenarios, input.initialState, input.step);
+  return runCapturedPhase0Pipeline({ ...input, observations });
+}
+
+/**
+ * Run reconstruction and verification over observations captured elsewhere.
+ *
+ * This is the bridge from the Ghidra/Amiberry adapters into the deterministic
+ * pipeline. Keeping it separate from `runPhase0Pipeline` makes the source of
+ * observations explicit and prevents a local fixture step from masking an
+ * integration failure.
+ */
+export function runCapturedPhase0Pipeline(
+  input: CapturedPhase0PipelineInput,
+): Phase0PipelineResult {
   const artifactId = digestSchema.parse(input.artifactId);
   const metadata = movementIRMetadataSchema.parse(structuredClone(input.metadata));
   const groundTruth = movementGroundTruthSchema.parse(structuredClone(input.groundTruth));
-  const observations = collectObservations(input.scenarios, input.initialState, input.step);
+  const scenarios = scenariosSchema.parse(structuredClone(input.scenarios));
+  const observations = runtimeObservationSchema.array().parse(structuredClone(input.observations));
+  const scenarioIds = new Set(scenarios.map(({ id }) => id));
+  if (observations.some(({ scenarioId }) => !scenarioIds.has(scenarioId))) {
+    throw new Error("Captured observations contain an unknown scenario");
+  }
   const analysis = analyzeHorizontalMovement(observations, input.staticSnapshot);
   const review = reviewHorizontalMovement(analysis.output.selected, observations);
   const staticSnapshotDigest = input.staticSnapshot === undefined
@@ -197,7 +228,6 @@ export function runPhase0Pipeline(input: Phase0PipelineInput): Phase0PipelineRes
 
   const ir = movementCandidateToIR(analysis.output.selected, metadata);
   const generatedSource = generateSimulationSource(ir);
-  const scenarios = scenariosSchema.parse(structuredClone(input.scenarios));
   const verification = scenarios.map((scenario) => verifyScenario(
     scenario.id,
     input.initialState,

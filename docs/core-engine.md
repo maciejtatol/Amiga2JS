@@ -125,6 +125,10 @@ The Phase 0 pipeline emits a stable run manifest containing the artifact ID and
 digests for static evidence, observations, analysis, review, IR, verification,
 grading, and generated source. The manifest intentionally excludes private
 ground truth and timestamps so repeated runs can be compared byte-for-byte.
+`runCapturedPhase0Pipeline` accepts observations produced by the external
+Amiberry adapter and feeds them through these same reconstruction and grading
+boundaries; unknown scenario IDs are rejected instead of being silently
+ignored.
 
 The `@retroport/reconstruction` package provides a provider-neutral analyst and
 independent reviewer for the Phase 0 horizontal-movement claim. The analyst
