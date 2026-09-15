@@ -278,9 +278,9 @@ disk-image/multi-disk work required before a real commercial game can be used.
 
 1. Add local ADF intake, provenance, filesystem/protection inspection, and
    executable extraction without committing proprietary disk images. The
-   `retroport inspect-adf`, `inspect-adf-set`, and `write-adf-manifest` intake
-   commands are now available; extraction remains Amiga-aware/emulator-assisted
-   work.
+   `retroport inspect-adf`, `inspect-adf-set`, `write-adf-manifest`, and
+   `plan-adf-extraction` intake commands are now available; extraction remains
+   Amiga-aware/emulator-assisted work.
 2. Add a multi-disk set manifest and Amiberry disk-swap capture events.
 3. Run the complete vertical slice against a real Ghidra installation and
    Amiberry automation server (the provider-neutral boundaries are ready).
