@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { diagnoseProject, loadCompatibilityRules } from "@retroport/compatibility";
 import { horizontalMovementIRSchema, projectManifestSchema } from "@retroport/schemas";
@@ -24,7 +24,11 @@ import {
   inspectHunk,
   verifyFixtureArtifact,
 } from "@retroport/source-amiga-hunk";
-import { inspectAdf } from "@retroport/source-amiga-adf";
+import {
+  inspectAdf,
+  inspectAdfSet,
+  parseAdfDiskNumber,
+} from "@retroport/source-amiga-adf";
 import {
   runCapturedPhase0Pipeline,
   runMicroFixturePipeline,
@@ -56,6 +60,10 @@ async function run(): Promise<void> {
   }
   if (command === "inspect-adf") {
     await runInspectAdf(args);
+    return;
+  }
+  if (command === "inspect-adf-set") {
+    await runInspectAdfSet(args);
     return;
   }
   if (command === "preflight") {
@@ -99,7 +107,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -146,6 +154,37 @@ async function runInspectAdf(args: string[]): Promise<void> {
   const resolvedPath = resolve(invocationDirectory, inputPath);
   const inspection = inspectAdf(await readFile(resolvedPath));
   console.log(JSON.stringify({ file: inputPath, ...inspection }, null, 2));
+}
+
+async function runInspectAdfSet(args: string[]): Promise<void> {
+  const inputDirectory = optionValue(args, "--input-dir");
+  if (!inputDirectory) throw new Error("inspect-adf-set requires --input-dir <directory>");
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const resolvedDirectory = resolve(invocationDirectory, inputDirectory);
+  const fileNames = (await readdir(resolvedDirectory, { withFileTypes: true }))
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".adf"))
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+  if (fileNames.length === 0) throw new Error("inspect-adf-set found no .adf files");
+  const disks = await Promise.all(fileNames.map(async (fileName) => ({
+    fileName,
+    diskNumber: parseAdfDiskNumber(fileName),
+    input: await readFile(resolve(resolvedDirectory, fileName)),
+  })));
+  const expectedText = optionValue(args, "--expected-disks");
+  let expected: number | undefined;
+  if (expectedText !== undefined) {
+    if (!/^\d+$/.test(expectedText)) {
+      throw new Error("--expected-disks must be a positive integer");
+    }
+    expected = Number.parseInt(expectedText, 10);
+    if (!Number.isSafeInteger(expected) || expected < 1) {
+      throw new Error("--expected-disks must be a positive integer");
+    }
+  }
+  const result = inspectAdfSet(disks, expected);
+  console.log(JSON.stringify({ directory: inputDirectory, ...result }, null, 2));
+  if (!result.valid) process.exitCode = 1;
 }
 
 async function runPreflight(args: string[]): Promise<void> {
