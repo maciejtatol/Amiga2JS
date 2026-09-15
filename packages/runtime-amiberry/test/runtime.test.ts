@@ -6,6 +6,7 @@ import {
   HttpAmiberryTransport,
   InMemoryRuntimeObservationRepository,
   runStatePatchExperiment,
+  type FloppyDrive,
   type RuntimeInput,
   type RuntimeObservation,
 } from "../src/index.js";
@@ -16,11 +17,20 @@ describe("Amiberry runtime boundary", () => {
     const oracle = new AmiberryRuntimeOracle({
       request: async <T>(operation: string, payload?: unknown): Promise<T> => {
         calls.push({ operation, payload });
-        return (operation === "read-state" ? { playerX: 10 } : undefined) as T;
+        return (
+          operation === "read-state"
+            ? { playerX: 10 }
+            : operation === "query-disk-swap"
+              ? { drives: [] }
+              : undefined
+        ) as T;
       },
     });
     const artifactId = `sha256:${"a".repeat(64)}`;
     await oracle.load(artifactId);
+    await oracle.insertFloppy(0, `sha256:${"b".repeat(64)}`);
+    await oracle.ejectFloppy(0);
+    await oracle.queryDiskSwap();
     await oracle.pause();
     await oracle.injectKeyboard("LEFT");
     await oracle.advanceFrame();
@@ -28,6 +38,9 @@ describe("Amiberry runtime boundary", () => {
     await oracle.writeState({ playerX: 100 });
     expect(calls).toEqual([
       { operation: "load", payload: { executableArtifactId: artifactId } },
+      { operation: "insert-floppy", payload: { drive: 0, artifactId: `sha256:${"b".repeat(64)}` } },
+      { operation: "eject-floppy", payload: { drive: 0 } },
+      { operation: "query-disk-swap", payload: undefined },
       { operation: "pause", payload: undefined },
       { operation: "inject-keyboard", payload: { input: "LEFT" } },
       { operation: "advance-frame", payload: undefined },
@@ -79,6 +92,21 @@ describe("Amiberry runtime boundary", () => {
       request: async <T>(): Promise<T> => ({ playerX: Infinity } as T),
     });
     await expect(oracle.readState(["playerX"])).rejects.toThrow();
+  });
+
+  it("validates disk operations and query state", async () => {
+    const oracle = new AmiberryRuntimeOracle({
+      request: async <T>(operation: string): Promise<T> => (
+        operation === "query-disk-swap"
+          ? { drives: [{ drive: 0, artifactId: `sha256:${"c".repeat(64)}` }] }
+          : undefined
+      ) as T,
+    });
+    await expect(oracle.queryDiskSwap()).resolves.toEqual({
+      drives: [{ drive: 0, artifactId: `sha256:${"c".repeat(64)}` }],
+    });
+    await expect(oracle.insertFloppy(4 as FloppyDrive, `sha256:${"d".repeat(64)}`)).rejects.toThrow();
+    await expect(oracle.ejectFloppy(0)).resolves.toBeUndefined();
   });
 
   it("rejects malformed state patches before sending them", async () => {

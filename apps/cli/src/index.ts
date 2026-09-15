@@ -29,6 +29,7 @@ import {
   createAdfSetManifest,
   inspectAdf,
   inspectAdfSet,
+  planAdfExtraction,
   parseAdfDiskNumber,
 } from "@retroport/source-amiga-adf";
 import {
@@ -72,6 +73,10 @@ async function run(): Promise<void> {
     await runWriteAdfManifest(args);
     return;
   }
+  if (command === "plan-adf-extraction") {
+    await runPlanAdfExtraction(args);
+    return;
+  }
   if (command === "preflight") {
     await runPreflight(args);
     return;
@@ -113,7 +118,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport write-adf-manifest ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport write-adf-manifest ... | retroport plan-adf-extraction ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -160,6 +165,16 @@ async function runInspectAdf(args: string[]): Promise<void> {
   const resolvedPath = resolve(invocationDirectory, inputPath);
   const inspection = inspectAdf(await readFile(resolvedPath));
   console.log(JSON.stringify({ file: inputPath, ...inspection }, null, 2));
+}
+
+async function runPlanAdfExtraction(args: string[]): Promise<void> {
+  const inputPath = optionValue(args, "--input");
+  if (!inputPath) throw new Error("plan-adf-extraction requires --input <file.adf>");
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const inspection = inspectAdf(await readFile(resolve(invocationDirectory, inputPath)));
+  const plan = planAdfExtraction(inspection);
+  console.log(JSON.stringify({ file: inputPath, inspection, plan }, null, 2));
+  if (plan.status !== "filesystem-ready") process.exitCode = 1;
 }
 
 async function runInspectAdfSet(args: string[]): Promise<void> {
