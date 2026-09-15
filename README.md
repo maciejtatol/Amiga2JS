@@ -183,6 +183,10 @@ retroport phase0
 The gate output includes a reproducibility manifest with stable digests for the
 artifact and every generated pipeline result.
 
+Captured observations from a real Amiberry run can enter the same pipeline via
+`runCapturedPhase0Pipeline`, preserving the reconstruction, verification, and
+grading gates used by the local fixture.
+
 ## What is Amiga2JS?
 
 Amiga2JS is an evidence-driven reverse-engineering project, not a
