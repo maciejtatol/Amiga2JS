@@ -155,6 +155,8 @@ verification, and ground-truth grading. Its fixture step is injected so CI can
 exercise the full sequence without bundling Ghidra or Amiberry. The
 `retroport phase0` command runs its repository-owned MicroFixture configuration
 and prints only the gate statuses and per-scenario verification results.
+The `retroport phase0-captured` command validates external JSON inputs and runs
+the same pipeline over observations captured from an Amiberry oracle.
 
 The `retroport capture` command composes the Amiberry HTTP transport with the
 scenario runner. It validates the scenario and artifact ID before requesting
