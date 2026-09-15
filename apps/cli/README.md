@@ -12,6 +12,10 @@ artifact's SHA-256 digest and HUNK structure before handing it to Ghidra.
 Use `retroport inspect-adf --input <file.adf>` to inspect ADF geometry, boot
 and root-block signals, packer/protection markers, and SHA-1/SHA-256 digests.
 
+Use `retroport inspect-adf-set --input-dir <directory> [--expected-disks N]`
+to validate disk numbering, completeness, and consistent geometry before
+attempting extraction.
+
 For headless static analysis, pass the repository's
 `tools/ghidra/RetroPortSnapshot.java` script to `retroport analyze`.
 

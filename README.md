@@ -72,6 +72,18 @@ retroport inspect \
   --input fixtures/amiga-m68k-horizontal/build-stripped.hunk.hex
 ```
 
+Inspect a local ADF and validate a complete multi-disk set before extraction:
+
+```sh
+npm run inspect-adf -w @retroport/cli -- --input path/to/disk.adf
+npm run inspect-adf-set -w @retroport/cli -- \
+  --input-dir "ADF games/Superfrog" --expected-disks 4
+```
+
+The set command exits non-zero for missing/duplicate disk numbers, non-standard
+geometry, or mixed geometries. It does not unpack custom loaders or convert an
+ADF into HUNK.
+
 Validate an artifact's digest and HUNK structure before analysis:
 
 ```sh
