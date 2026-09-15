@@ -25,6 +25,8 @@ import {
   verifyFixtureArtifact,
 } from "@retroport/source-amiga-hunk";
 import {
+  adfProvenanceSchema,
+  createAdfSetManifest,
   inspectAdf,
   inspectAdfSet,
   parseAdfDiskNumber,
@@ -64,6 +66,10 @@ async function run(): Promise<void> {
   }
   if (command === "inspect-adf-set") {
     await runInspectAdfSet(args);
+    return;
+  }
+  if (command === "write-adf-manifest") {
+    await runWriteAdfManifest(args);
     return;
   }
   if (command === "preflight") {
@@ -107,7 +113,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport write-adf-manifest ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -161,30 +167,64 @@ async function runInspectAdfSet(args: string[]): Promise<void> {
   if (!inputDirectory) throw new Error("inspect-adf-set requires --input-dir <directory>");
   const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
   const resolvedDirectory = resolve(invocationDirectory, inputDirectory);
-  const fileNames = (await readdir(resolvedDirectory, { withFileTypes: true }))
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".adf"))
-    .map((entry) => entry.name)
-    .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
-  if (fileNames.length === 0) throw new Error("inspect-adf-set found no .adf files");
-  const disks = await Promise.all(fileNames.map(async (fileName) => ({
-    fileName,
-    diskNumber: parseAdfDiskNumber(fileName),
-    input: await readFile(resolve(resolvedDirectory, fileName)),
-  })));
-  const expectedText = optionValue(args, "--expected-disks");
-  let expected: number | undefined;
-  if (expectedText !== undefined) {
-    if (!/^\d+$/.test(expectedText)) {
-      throw new Error("--expected-disks must be a positive integer");
-    }
-    expected = Number.parseInt(expectedText, 10);
-    if (!Number.isSafeInteger(expected) || expected < 1) {
-      throw new Error("--expected-disks must be a positive integer");
-    }
-  }
+  const disks = await readAdfSetFiles(resolvedDirectory);
+  const expected = parseExpectedDiskCount(args);
   const result = inspectAdfSet(disks, expected);
   console.log(JSON.stringify({ directory: inputDirectory, ...result }, null, 2));
   if (!result.valid) process.exitCode = 1;
+}
+
+async function runWriteAdfManifest(args: string[]): Promise<void> {
+  const inputDirectory = optionValue(args, "--input-dir");
+  const outputPath = optionValue(args, "--output");
+  const setId = optionValue(args, "--set-id");
+  const title = optionValue(args, "--title");
+  const source = optionValue(args, "--source");
+  const licenseStatus = optionValue(args, "--license-status");
+  if (!inputDirectory || !outputPath || !setId || !title || !source || !licenseStatus) {
+    throw new Error("write-adf-manifest requires --input-dir, --output, --set-id, --title, --source, and --license-status");
+  }
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const disks = await readAdfSetFiles(resolve(invocationDirectory, inputDirectory));
+  const inspection = inspectAdfSet(disks, parseExpectedDiskCount(args));
+  const provenance = adfProvenanceSchema.parse({
+    source,
+    licenseStatus,
+    tool: optionValue(args, "--tool"),
+    notes: optionValue(args, "--notes"),
+  });
+  const manifest = createAdfSetManifest({ setId, title, provenance, inspection });
+  await writeFile(
+    resolve(invocationDirectory, outputPath),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    "utf8",
+  );
+  console.log(JSON.stringify({ output: outputPath, validation: manifest.validation }, null, 2));
+  if (!manifest.validation.valid) process.exitCode = 1;
+}
+
+async function readAdfSetFiles(directory: string) {
+  const fileNames = (await readdir(directory, { withFileTypes: true }))
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".adf"))
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+  if (fileNames.length === 0) throw new Error("ADF set contains no .adf files");
+  return await Promise.all(fileNames.map(async (fileName) => ({
+    fileName,
+    diskNumber: parseAdfDiskNumber(fileName),
+    input: await readFile(resolve(directory, fileName)),
+  })));
+}
+
+function parseExpectedDiskCount(args: string[]): number | undefined {
+  const expectedText = optionValue(args, "--expected-disks");
+  if (expectedText === undefined) return undefined;
+  if (!/^\d+$/.test(expectedText)) throw new Error("--expected-disks must be a positive integer");
+  const expected = Number.parseInt(expectedText, 10);
+  if (!Number.isSafeInteger(expected) || expected < 1) {
+    throw new Error("--expected-disks must be a positive integer");
+  }
+  return expected;
 }
 
 async function runPreflight(args: string[]): Promise<void> {

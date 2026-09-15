@@ -5,5 +5,5 @@
   "type": "module",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "test": "vitest run", "typecheck": "tsc --project tsconfig.json" },
-  "dependencies": {}
+  "dependencies": { "zod": "3.25.67" }
 }
