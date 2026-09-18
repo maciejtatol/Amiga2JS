@@ -25,6 +25,13 @@ Use `retroport plan-adf-extraction --input <file.adf>` to select the next safe
 extraction boundary. Custom boot or packed images return a non-zero status and
 identify the emulator-assisted actions still required.
 
+Use `retroport record-adf-extraction --disk <disk.adf> --artifact <file>
+--output <record.json> --format <hunk|raw-memory-dump|unknown> --method
+<amigados-tool|emulator-memory-dump|manual>` to link an extracted artifact to
+its parent disk digest. HUNK artifacts are decoded from binary or hexadecimal
+input and structurally validated before their record is written; raw memory
+dumps remain opaque until a later loader-analysis step.
+
 For headless static analysis, pass the repository's
 `tools/ghidra/RetroPortSnapshot.java` script to `retroport analyze`.
 

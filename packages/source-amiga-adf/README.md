@@ -1,6 +1,6 @@
 # @retroport/source-amiga-adf
 
-Small, dependency-free ADF intake boundary. It reports image geometry, boot
+Small ADF intake boundary. It reports image geometry, boot
 signatures, the conventional AmigaDOS root block, content-kind warnings,
 protection/packer markers, and reproducible SHA-1/SHA-256 digests.
 
@@ -13,6 +13,9 @@ provenance, per-disk digests, inspection results, and validation issues.
 `planAdfExtraction` explicitly distinguishes filesystem extraction from images
 that require emulator-assisted loader capture. It never labels raw disk bytes
 as an executable.
+
+`createAdfExtractionRecord` links an extracted artifact to its parent disk
+digest, extraction method, format, size, and artifact digest.
 
 This package deliberately does not unpack custom loaders or claim that an ADF
 is a HUNK executable. Extraction remains a later Amiga-aware or emulator-

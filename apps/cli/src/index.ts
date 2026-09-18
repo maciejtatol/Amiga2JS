@@ -26,6 +26,7 @@ import {
 } from "@retroport/source-amiga-hunk";
 import {
   adfProvenanceSchema,
+  createAdfExtractionRecord,
   createAdfSetManifest,
   inspectAdf,
   inspectAdfSet,
@@ -77,6 +78,10 @@ async function run(): Promise<void> {
     await runPlanAdfExtraction(args);
     return;
   }
+  if (command === "record-adf-extraction") {
+    await runRecordAdfExtraction(args);
+    return;
+  }
   if (command === "preflight") {
     await runPreflight(args);
     return;
@@ -118,7 +123,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport write-adf-manifest ... | retroport plan-adf-extraction ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport write-adf-manifest ... | retroport plan-adf-extraction ... | retroport record-adf-extraction ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -135,7 +140,7 @@ async function run(): Promise<void> {
   for (const warningId of diagnosis.warningIds) console.log(`- ${warningId}`);
 }
 
-function decodeHunkInput(input: Uint8Array): Uint8Array {
+function decodeHunkInput(input: Uint8Array, description = "input"): Uint8Array {
   // Repository fixtures are stored as text so they remain reviewable in Git;
   // production callers may provide the equivalent binary HUNK directly.
   const hunkMagic = [0x00, 0x00, 0x03, 0xf3];
@@ -145,7 +150,7 @@ function decodeHunkInput(input: Uint8Array): Uint8Array {
   }
   const text = Buffer.from(input).toString("utf8").trim();
   if (!/^[0-9a-f]+$/i.test(text) || text.length % 2 !== 0) {
-    throw new Error("inspect input must be a binary HUNK or an even-length hexadecimal file");
+    throw new Error(`${description} must be a binary HUNK or an even-length hexadecimal file`);
   }
   return new Uint8Array(Buffer.from(text, "hex"));
 }
@@ -175,6 +180,53 @@ async function runPlanAdfExtraction(args: string[]): Promise<void> {
   const plan = planAdfExtraction(inspection);
   console.log(JSON.stringify({ file: inputPath, inspection, plan }, null, 2));
   if (plan.status !== "filesystem-ready") process.exitCode = 1;
+}
+
+async function runRecordAdfExtraction(args: string[]): Promise<void> {
+  const diskPath = optionValue(args, "--disk");
+  const artifactPath = optionValue(args, "--artifact");
+  const outputPath = optionValue(args, "--output");
+  const format = optionValue(args, "--format");
+  const method = optionValue(args, "--method");
+  if (!diskPath || !artifactPath || !outputPath || !format || !method) {
+    throw new Error("record-adf-extraction requires --disk, --artifact, --output, --format, and --method");
+  }
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const disk = await readFile(resolve(invocationDirectory, diskPath));
+  const diskInspection = inspectAdf(disk);
+  const allowedFormats = ["hunk", "raw-memory-dump", "unknown"] as const;
+  const allowedMethods = ["amigados-tool", "emulator-memory-dump", "manual"] as const;
+  if (!allowedFormats.includes(format as typeof allowedFormats[number])) {
+    throw new Error("--format must be hunk, raw-memory-dump, or unknown");
+  }
+  if (!allowedMethods.includes(method as typeof allowedMethods[number])) {
+    throw new Error("--method must be amigados-tool, emulator-memory-dump, or manual");
+  }
+  const artifactInput = await readFile(resolve(invocationDirectory, artifactPath));
+  // HUNK records must contain the decoded executable bytes that downstream
+  // preflight and Ghidra consume. The same hex fixture convention as
+  // `retroport inspect` is accepted, but it is always validated here.
+  const artifact = format === "hunk"
+    ? decodeHunkInput(artifactInput, "artifact")
+    : artifactInput;
+  if (format === "hunk") inspectHunk(artifact);
+  const notes = optionValue(args, "--notes");
+  const record = createAdfExtractionRecord({
+    parentDiskSha256: diskInspection.sha256,
+    artifact,
+    artifactFormat: format as typeof allowedFormats[number],
+    extractionMethod: method as typeof allowedMethods[number],
+    sourceFile: artifactPath,
+    ...(notes === undefined
+      ? {}
+      : { notes }),
+  });
+  await writeFile(
+    resolve(invocationDirectory, outputPath),
+    `${JSON.stringify(record, null, 2)}\n`,
+    "utf8",
+  );
+  console.log(JSON.stringify(record, null, 2));
 }
 
 async function runInspectAdfSet(args: string[]): Promise<void> {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createAdfSetManifest,
+  createAdfExtractionRecord,
   inspectAdf,
   inspectAdfSet,
   planAdfExtraction,
@@ -79,6 +80,26 @@ describe("inspectAdf", () => {
       status: "requires-emulator",
       method: "emulator-boot-capture",
     });
+  });
+
+  it("records an extracted artifact with its parent disk digest", () => {
+    const artifact = Uint8Array.from([0, 0, 3, 243, 1]);
+    const record = createAdfExtractionRecord({
+      parentDiskSha256: "a".repeat(64),
+      artifact,
+      artifactFormat: "hunk",
+      extractionMethod: "emulator-memory-dump",
+      sourceFile: "memory-dump.bin",
+    });
+
+    expect(record).toMatchObject({
+      schemaVersion: 1,
+      parentDiskSha256: "a".repeat(64),
+      artifactByteLength: artifact.byteLength,
+      artifactFormat: "hunk",
+      extractionMethod: "emulator-memory-dump",
+    });
+    expect(record.artifactSha256).toHaveLength(64);
   });
 });
 
