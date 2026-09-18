@@ -71,6 +71,23 @@ export interface AdfExtractionPlan {
   readonly nextActions: readonly string[];
 }
 
+export const adfExtractionMethodSchema = z.enum([
+  "amigados-tool", "emulator-memory-dump", "manual",
+]);
+export type AdfExtractionMethodName = z.infer<typeof adfExtractionMethodSchema>;
+
+export const adfExtractedArtifactSchema = z.object({
+  schemaVersion: z.literal(1),
+  parentDiskSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  artifactSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  artifactByteLength: z.number().int().positive(),
+  artifactFormat: z.enum(["hunk", "raw-memory-dump", "unknown"]),
+  extractionMethod: adfExtractionMethodSchema,
+  sourceFile: z.string().min(1),
+  notes: z.string().min(1).optional(),
+}).strict();
+export type AdfExtractedArtifact = z.infer<typeof adfExtractedArtifactSchema>;
+
 export const adfLicenseStatusSchema = z.enum([
   "owned-dump", "authorized", "redistributable", "unknown",
 ]);
@@ -210,6 +227,28 @@ export function planAdfExtraction(inspection: AdfInspection): AdfExtractionPlan 
     reason: "No supported AmigaDOS structure or recognized boot path was detected.",
     nextActions: ["Obtain a complete image dump or add a format-specific decoder."],
   };
+}
+
+/** Create a traceable record linking an extracted artifact back to its disk. */
+export function createAdfExtractionRecord(input: {
+  readonly parentDiskSha256: string;
+  readonly artifact: Uint8Array;
+  readonly artifactFormat: AdfExtractedArtifact["artifactFormat"];
+  readonly extractionMethod: AdfExtractionMethodName;
+  readonly sourceFile: string;
+  readonly notes?: string;
+}): AdfExtractedArtifact {
+  const parentDiskSha256 = z.string().regex(/^[0-9a-f]{64}$/).parse(input.parentDiskSha256);
+  return adfExtractedArtifactSchema.parse({
+    schemaVersion: 1,
+    parentDiskSha256,
+    artifactSha256: createHash("sha256").update(input.artifact).digest("hex"),
+    artifactByteLength: input.artifact.byteLength,
+    artifactFormat: input.artifactFormat,
+    extractionMethod: input.extractionMethod,
+    sourceFile: input.sourceFile,
+    notes: input.notes,
+  });
 }
 
 /** Extract a disk number from common TOSEC or simple numbered filenames. */

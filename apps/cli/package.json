@@ -12,6 +12,7 @@
     "inspect-adf-set": "node --import tsx src/index.ts inspect-adf-set",
     "write-adf-manifest": "node --import tsx src/index.ts write-adf-manifest",
     "plan-adf-extraction": "node --import tsx src/index.ts plan-adf-extraction",
+    "record-adf-extraction": "node --import tsx src/index.ts record-adf-extraction",
     "preflight": "node --import tsx src/index.ts preflight",
     "reconstruct": "node --import tsx src/index.ts reconstruct",
     "generate": "node --import tsx src/index.ts generate",
