@@ -84,6 +84,23 @@ The set command exits non-zero for missing/duplicate disk numbers, non-standard
 geometry, or mixed geometries. It does not unpack custom loaders or convert an
 ADF into HUNK.
 
+Choose the next extraction boundary, then record a validated executable or
+memory dump with its parent disk digest:
+
+```sh
+npm run plan-adf-extraction -w @retroport/cli -- --input path/to/disk.adf
+npm run record-adf-extraction -w @retroport/cli -- \
+  --disk path/to/disk.adf \
+  --artifact path/to/extracted.hunk \
+  --output extraction-record.json \
+  --format hunk \
+  --method amigados-tool
+```
+
+HUNK input may be binary or hexadecimal and is structurally checked before the
+record is written. Custom/protected disks still require emulator-assisted
+capture; the record command does not pretend to extract them.
+
 Validate an artifact's digest and HUNK structure before analysis:
 
 ```sh
@@ -279,8 +296,8 @@ disk-image/multi-disk work required before a real commercial game can be used.
 1. Add local ADF intake, provenance, filesystem/protection inspection, and
    executable extraction without committing proprietary disk images. The
    `retroport inspect-adf`, `inspect-adf-set`, `write-adf-manifest`, and
-   `plan-adf-extraction` intake commands are now available; extraction remains
-   Amiga-aware/emulator-assisted work.
+   `plan-adf-extraction`/`record-adf-extraction` commands are now available;
+   extraction remains Amiga-aware/emulator-assisted work.
 2. Add a multi-disk set manifest and Amiberry disk-swap capture events.
 3. Run the complete vertical slice against a real Ghidra installation and
    Amiberry automation server (the provider-neutral boundaries are ready).
