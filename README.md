@@ -248,6 +248,7 @@ adapters come later.
 - Partial, manual, and unsupported are valid outcomes—there is no fake success.
 - Reconstructed physics, collision, and timing are not silently replaced with
   framework defaults.
+- TODO
 
 ## Current scope
 
