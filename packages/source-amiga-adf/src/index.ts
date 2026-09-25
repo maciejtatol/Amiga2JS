@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import { execFile } from "node:child_process";
+import { join, relative } from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 
@@ -89,10 +90,16 @@ export class NodeAdfExtractionCommandRunner implements AdfExtractionCommandRunne
 export const adfFilesystemExtractionResultSchema = z.object({
   schemaVersion: z.literal(1),
   method: z.literal("amigados-tool"),
+  parentDiskSha256: z.string().regex(/^[0-9a-f]{64}$/),
   inputPath: z.string().min(1),
   outputDirectory: z.string().min(1),
   command: z.string().min(1),
   arguments: z.array(z.string().min(1)),
+  files: z.array(z.object({
+    relativePath: z.string().min(1),
+    byteLength: z.number().int().positive(),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  }).strict()),
 }).strict();
 export type AdfFilesystemExtractionResult = z.infer<typeof adfFilesystemExtractionResultSchema>;
 
@@ -118,17 +125,50 @@ export class AdfLibFilesystemExtractor {
       throw new Error("ADF does not expose a conventional AmigaDOS filesystem");
     }
     await mkdir(outputDirectory, { recursive: true });
+    if ((await readdir(outputDirectory)).length > 0) {
+      throw new Error("ADF extraction output directory must be empty");
+    }
     const args = ["-d", outputDirectory, inputPath] as const;
     await this.runner.run(command, args);
+    const files = await collectExtractedFiles(outputDirectory);
     return adfFilesystemExtractionResultSchema.parse({
       schemaVersion: 1,
       method: "amigados-tool",
+      parentDiskSha256: inspection.sha256,
       inputPath,
       outputDirectory,
       command,
       arguments: args,
+      files,
     });
   }
+}
+
+async function collectExtractedFiles(outputDirectory: string): Promise<readonly {
+  relativePath: string;
+  byteLength: number;
+  sha256: string;
+}[]> {
+  const files: Array<{ relativePath: string; byteLength: number; sha256: string }> = [];
+  const visit = async (directory: string): Promise<void> => {
+    const entries = await readdir(directory, { withFileTypes: true });
+    for (const entry of entries) {
+      const filePath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        await visit(filePath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const bytes = await readFile(filePath);
+      files.push({
+        relativePath: relative(outputDirectory, filePath).split("\\").join("/"),
+        byteLength: bytes.byteLength,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      });
+    }
+  };
+  await visit(outputDirectory);
+  return files.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
 }
 
 export const adfExtractionMethodSchema = z.enum([
