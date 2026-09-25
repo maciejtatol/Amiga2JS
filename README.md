@@ -311,9 +311,10 @@ disk-image/multi-disk work required before a real commercial game can be used.
 
 1. Add local ADF intake, provenance, filesystem/protection inspection, and
    executable extraction without committing proprietary disk images. The
-   `retroport inspect-adf`, `inspect-adf-set`, `write-adf-manifest`, and
-   `plan-adf-extraction`/`record-adf-extraction` commands are now available;
-   extraction remains Amiga-aware/emulator-assisted work.
+   `retroport inspect-adf`, `inspect-adf-set`, `write-adf-manifest`,
+   `plan-adf-extraction`, `extract-adf-files`, and
+   `record-adf-extraction` commands are now available; protected extraction
+   remains Amiga-aware/emulator-assisted work.
 2. Add a multi-disk set manifest and Amiberry disk-swap capture events. Set
    validation, typed media operations, and deterministic journal replay are
    available, as is frame-aligned polling capture; direct event-stream

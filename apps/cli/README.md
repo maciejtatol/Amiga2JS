@@ -28,7 +28,8 @@ identify the emulator-assisted actions still required.
 Use `retroport extract-adf-files --input <file.adf> --output-dir <directory>
 [--command <unadf>] [--record <result.json>]` to invoke ADFlib's `unadf`
 extractor for a conventional AmigaDOS volume. The command refuses custom,
-packed, or protected images before starting the external tool.
+packed, or protected images before starting the external tool and reports a
+sorted content digest for every extracted file.
 
 Use `retroport record-adf-extraction --disk <disk.adf> --artifact <file>
 --output <record.json> --format <hunk|raw-memory-dump|unknown> --method
