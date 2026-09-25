@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import {
   AdfLibFilesystemExtractor,
   createAdfSetManifest,
@@ -85,28 +86,42 @@ describe("inspectAdf", () => {
 
   it("extracts conventional filesystems through an injected ADFlib runner", async () => {
     const calls: Array<{ command: string; args: readonly string[] }> = [];
+    const outputDirectory = await mkdtemp("/private/tmp/retroport-adf-extraction-test-");
     const extractor = new AdfLibFilesystemExtractor({
-      run: async (command, args) => { calls.push({ command, args }); },
+      run: async (command, args) => {
+        calls.push({ command, args });
+        await writeFile(`${outputDirectory}/game.bin`, Uint8Array.from([1, 2, 3]));
+      },
     });
     const image = new Uint8Array(ddBytes);
     image.set([0x44, 0x4f, 0x53, 0x00]);
     new DataView(image.buffer).setUint32(880 * 512, 2, false);
-    await expect(extractor.extract({
-      inputPath: "disk.adf",
-      outputDirectory: "/private/tmp/retroport-adf-extraction-test",
-      inspection: inspectAdf(image),
-    })).resolves.toMatchObject({
-      schemaVersion: 1,
-      method: "amigados-tool",
-      inputPath: "disk.adf",
-      outputDirectory: "/private/tmp/retroport-adf-extraction-test",
-      command: "unadf",
-      arguments: ["-d", "/private/tmp/retroport-adf-extraction-test", "disk.adf"],
-    });
-    expect(calls).toEqual([{
-      command: "unadf",
-      args: ["-d", "/private/tmp/retroport-adf-extraction-test", "disk.adf"],
-    }]);
+    try {
+      await expect(extractor.extract({
+        inputPath: "disk.adf",
+        outputDirectory,
+        inspection: inspectAdf(image),
+      })).resolves.toMatchObject({
+        schemaVersion: 1,
+        method: "amigados-tool",
+        parentDiskSha256: inspectAdf(image).sha256,
+        inputPath: "disk.adf",
+        outputDirectory,
+        command: "unadf",
+        arguments: ["-d", outputDirectory, "disk.adf"],
+        files: [{
+          relativePath: "game.bin",
+          byteLength: 3,
+          sha256: "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
+        }],
+      });
+      expect(calls).toEqual([{
+        command: "unadf",
+        args: ["-d", outputDirectory, "disk.adf"],
+      }]);
+    } finally {
+      await rm(outputDirectory, { recursive: true, force: true });
+    }
   });
 
   it("does not invoke a filesystem extractor for protected disks", async () => {

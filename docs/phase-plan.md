@@ -92,11 +92,14 @@ standard AmigaDOS extraction is available through the injectable ADFlib
 `unadf` adapter and `extract-adf-files`; emulator-assisted memory/loader
 capture remains pending.
 
-- Add an Amiga disk-image adapter for filesystem extraction where possible.
+- Use the injectable Amiga disk-image adapter for filesystem extraction where
+  possible.
+- Inventory extracted files with stable relative paths, sizes, and SHA-256
+  digests before selecting executable candidates.
 - Fall back to emulator-assisted boot capture for custom loaders, packed code,
   or protected disks.
-- Persist the extracted executable(s) as content-addressed artifacts and retain
-  the parent disk digest and extraction method.
+- Persist selected extracted executable(s) as content-addressed artifacts and
+  retain the parent disk digest and extraction method.
 - Run HUNK preflight only on extracted HUNK candidates.
 
 Gate: each analyzed executable has a traceable parent disk and extraction

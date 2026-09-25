@@ -20,7 +20,8 @@ digest, extraction method, format, size, and artifact digest.
 `AdfLibFilesystemExtractor` provides an injectable boundary for ADFlib's
 `unadf` command. It creates the destination directory, runs extraction only
 for a conventional AmigaDOS inspection, and returns a versioned invocation
-record for later artifact discovery.
+record with a sorted inventory of extracted files, byte lengths, and SHA-256
+digests for later artifact selection.
 
 This package deliberately does not unpack custom loaders or claim that an ADF
 is a HUNK executable. Extraction remains a later Amiga-aware or emulator-
