@@ -5,12 +5,14 @@ import { diagnoseProject, loadCompatibilityRules } from "@retroport/compatibilit
 import { horizontalMovementIRSchema, projectManifestSchema } from "@retroport/schemas";
 import {
   captureScenario,
+  diskSwapReplaySchema,
   HttpAmiberryTransport,
   runStatePatchExperiment,
   runtimeObservationSchema,
   runtimeInputSchema,
   runtimeScenarioSchema,
   AmiberryRuntimeOracle,
+  replayDiskSwapJournal,
 } from "@retroport/runtime-amiberry";
 import { runPhase0AcceptanceSuite, verifyScenario } from "@retroport/verification";
 import { generateSimulationSource, simulationStateSchema } from "@retroport/target-typescript";
@@ -82,6 +84,10 @@ async function run(): Promise<void> {
     await runRecordAdfExtraction(args);
     return;
   }
+  if (command === "replay-disk-swap") {
+    await runReplayDiskSwap(args);
+    return;
+  }
   if (command === "preflight") {
     await runPreflight(args);
     return;
@@ -123,7 +129,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport write-adf-manifest ... | retroport plan-adf-extraction ... | retroport record-adf-extraction ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport write-adf-manifest ... | retroport plan-adf-extraction ... | retroport record-adf-extraction ... | retroport replay-disk-swap ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -227,6 +233,28 @@ async function runRecordAdfExtraction(args: string[]): Promise<void> {
     "utf8",
   );
   console.log(JSON.stringify(record, null, 2));
+}
+
+async function runReplayDiskSwap(args: string[]): Promise<void> {
+  const journalPath = optionValue(args, "--journal");
+  const server = optionValue(args, "--server");
+  if (!journalPath || !server) {
+    throw new Error("replay-disk-swap requires --journal <file.json> and --server <url>");
+  }
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const journal = JSON.parse(await readFile(
+    resolve(invocationDirectory, journalPath),
+    "utf8",
+  ));
+  const oracle = new AmiberryRuntimeOracle(new HttpAmiberryTransport(server));
+  const snapshots = await replayDiskSwapJournal(oracle, journal);
+  const replay = diskSwapReplaySchema.parse({ schemaVersion: 1, snapshots });
+  const output = JSON.stringify(replay, null, 2);
+  const outputPath = optionValue(args, "--output");
+  if (outputPath) {
+    await writeFile(resolve(invocationDirectory, outputPath), `${output}\n`, "utf8");
+  }
+  console.log(output);
 }
 
 async function runInspectAdfSet(args: string[]): Promise<void> {

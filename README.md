@@ -101,6 +101,15 @@ HUNK input may be binary or hexadecimal and is structurally checked before the
 record is written. Custom/protected disks still require emulator-assisted
 capture; the record command does not pretend to extract them.
 
+Replay a validated multi-disk journal against an Amiberry server:
+
+```sh
+npm run replay-disk-swap -w @retroport/cli -- \
+  --journal path/to/disk-swap-journal.json \
+  --server http://127.0.0.1:8000 \
+  --output disk-swap-replay.json
+```
+
 Validate an artifact's digest and HUNK structure before analysis:
 
 ```sh
@@ -248,7 +257,6 @@ adapters come later.
 - Partial, manual, and unsupported are valid outcomes—there is no fake success.
 - Reconstructed physics, collision, and timing are not silently replaced with
   framework defaults.
-- TODO
 
 ## Current scope
 
@@ -299,7 +307,9 @@ disk-image/multi-disk work required before a real commercial game can be used.
    `retroport inspect-adf`, `inspect-adf-set`, `write-adf-manifest`, and
    `plan-adf-extraction`/`record-adf-extraction` commands are now available;
    extraction remains Amiga-aware/emulator-assisted work.
-2. Add a multi-disk set manifest and Amiberry disk-swap capture events.
+2. Add a multi-disk set manifest and Amiberry disk-swap capture events. Set
+   validation, typed media operations, and deterministic journal replay are
+   available; live event capture remains pending.
 3. Run the complete vertical slice against a real Ghidra installation and
    Amiberry automation server (the provider-neutral boundaries are ready).
 4. Generate TypeScript from reviewed claims and compare state tick by tick

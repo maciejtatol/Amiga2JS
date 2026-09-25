@@ -32,6 +32,11 @@ its parent disk digest. HUNK artifacts are decoded from binary or hexadecimal
 input and structurally validated before their record is written; raw memory
 dumps remain opaque until a later loader-analysis step.
 
+Use `retroport replay-disk-swap --journal <journal.json> --server <url>
+[--output <replay.json>]` to replay validated, frame-aligned media changes
+against Amiberry. The command pauses first, advances to each event tick, and
+records the normalized disk state after every insert/eject operation.
+
 For headless static analysis, pass the repository's
 `tools/ghidra/RetroPortSnapshot.java` script to `retroport analyze`.
 

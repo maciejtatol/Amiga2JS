@@ -106,7 +106,8 @@ record, and analysts can distinguish disk bytes from executable bytes.
 Status: ordered-set discovery and pre-extraction validation are available via
 `retroport inspect-adf-set`. The Amiberry runtime boundary now exposes typed
 insert/eject/query disk operations, and validated disk-swap journals can be
-replayed deterministically. Live emulator event capture remains pending.
+replayed deterministically with `retroport replay-disk-swap`. Live emulator
+event capture remains pending.
 
 - Model a disk set with stable set ID, ordered disk IDs, labels, boot disk,
   required Kickstart/configuration, and per-disk hashes.
