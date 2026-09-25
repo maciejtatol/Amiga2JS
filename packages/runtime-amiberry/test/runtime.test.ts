@@ -5,6 +5,9 @@ import {
   findFirstObservationMismatch,
   HttpAmiberryTransport,
   InMemoryRuntimeObservationRepository,
+  normalizeDiskSwapJournal,
+  normalizeDiskSwapState,
+  replayDiskSwapJournal,
   runStatePatchExperiment,
   type FloppyDrive,
   type RuntimeInput,
@@ -107,6 +110,70 @@ describe("Amiberry runtime boundary", () => {
     });
     await expect(oracle.insertFloppy(4 as FloppyDrive, `sha256:${"d".repeat(64)}`)).rejects.toThrow();
     await expect(oracle.ejectFloppy(0)).resolves.toBeUndefined();
+  });
+
+  it("normalizes disk state and rejects duplicate drives", () => {
+    expect(normalizeDiskSwapState({ drives: [
+      { drive: 2, artifactId: null },
+      { drive: 0, artifactId: `sha256:${"a".repeat(64)}` },
+    ] })).toEqual({ drives: [
+      { drive: 0, artifactId: `sha256:${"a".repeat(64)}` },
+      { drive: 2, artifactId: null },
+    ] });
+    expect(() => normalizeDiskSwapState({ drives: [
+      { drive: 1, artifactId: null },
+      { drive: 1, artifactId: null },
+    ] })).toThrow("appears more than once");
+  });
+
+  it("replays ordered disk swaps at frame boundaries", async () => {
+    const calls: string[] = [];
+    const states = [
+      { drives: [{ drive: 0, artifactId: `sha256:${"a".repeat(64)}` }] },
+      { drives: [{ drive: 0, artifactId: null }] },
+    ];
+    const oracle = {
+      pause: async () => { calls.push("pause"); },
+      advanceFrame: async () => { calls.push("frame"); },
+      insertFloppy: async (drive: number, artifactId: string) => { calls.push(`insert:${drive}:${artifactId}`); },
+      ejectFloppy: async (drive: number) => { calls.push(`eject:${drive}`); },
+      queryDiskSwap: async () => states.shift() ?? { drives: [] },
+    };
+    await expect(replayDiskSwapJournal(oracle, {
+      schemaVersion: 1,
+      events: [
+        { tick: 2, action: "eject", drive: 0, artifactId: null },
+        { tick: 0, action: "insert", drive: 0, artifactId: `sha256:${"a".repeat(64)}` },
+      ],
+    })).rejects.toThrow("ordered by tick");
+    const snapshots = await replayDiskSwapJournal(oracle, {
+      schemaVersion: 1,
+      events: [
+        { tick: 0, action: "insert", drive: 0, artifactId: `sha256:${"a".repeat(64)}` },
+        { tick: 2, action: "eject", drive: 0, artifactId: null },
+      ],
+    });
+    expect(calls).toEqual([
+      "pause",
+      `insert:0:sha256:${"a".repeat(64)}`,
+      "frame",
+      "frame",
+      "eject:0",
+    ]);
+    expect(snapshots.map(({ event, state }) => [event.tick, state.drives[0]?.artifactId])).toEqual([
+      [0, `sha256:${"a".repeat(64)}`],
+      [2, null],
+    ]);
+  });
+
+  it("rejects ambiguous journal events", () => {
+    expect(() => normalizeDiskSwapJournal({
+      schemaVersion: 1,
+      events: [
+        { tick: 1, action: "eject", drive: 0, artifactId: null },
+        { tick: 1, action: "insert", drive: 0, artifactId: `sha256:${"b".repeat(64)}` },
+      ],
+    })).toThrow("multiple events for 1:0");
   });
 
   it("rejects malformed state patches before sending them", async () => {

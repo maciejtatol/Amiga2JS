@@ -43,13 +43,73 @@ export const statePatchResultSchema = z.object({
 }).strict();
 export type StatePatchResult = z.infer<typeof statePatchResultSchema>;
 
+const diskDriveStateSchema = z.object({
+  drive: floppyDriveSchema,
+  artifactId: diskArtifactIdSchema.nullable(),
+}).strict();
+
 export const diskSwapStateSchema = z.object({
-  drives: z.array(z.object({
-    drive: floppyDriveSchema,
-    artifactId: diskArtifactIdSchema.nullable(),
+  drives: z.array(diskDriveStateSchema),
+}).strict().superRefine((state, context) => {
+  const drives = new Set<number>();
+  for (const [index, entry] of state.drives.entries()) {
+    if (drives.has(entry.drive)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["drives", index, "drive"],
+        message: `Drive ${entry.drive} appears more than once`,
+      });
+    }
+    drives.add(entry.drive);
+  }
+});
+export type DiskSwapState = z.infer<typeof diskSwapStateSchema>;
+
+export const diskSwapActionSchema = z.enum(["insert", "eject"]);
+export type DiskSwapAction = z.infer<typeof diskSwapActionSchema>;
+
+export const diskSwapEventSchema = z.object({
+  tick: z.number().int().nonnegative(),
+  action: diskSwapActionSchema,
+  drive: floppyDriveSchema,
+  artifactId: diskArtifactIdSchema.nullable(),
+}).strict().superRefine((event, context) => {
+  if (event.action === "insert" && event.artifactId === null) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["artifactId"],
+      message: "Insert events require a disk artifact ID",
+    });
+  }
+  if (event.action === "eject" && event.artifactId !== null) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["artifactId"],
+      message: "Eject events must not include a disk artifact ID",
+    });
+  }
+});
+export type DiskSwapEvent = z.infer<typeof diskSwapEventSchema>;
+
+export const diskSwapJournalSchema = z.object({
+  schemaVersion: z.literal(1),
+  events: z.array(diskSwapEventSchema),
+}).strict();
+export type DiskSwapJournal = z.infer<typeof diskSwapJournalSchema>;
+
+export interface DiskSwapReplaySnapshot {
+  readonly event: DiskSwapEvent;
+  readonly state: DiskSwapState;
+}
+
+export const diskSwapReplaySchema = z.object({
+  schemaVersion: z.literal(1),
+  snapshots: z.array(z.object({
+    event: diskSwapEventSchema,
+    state: diskSwapStateSchema,
   }).strict()),
 }).strict();
-export type DiskSwapState = z.infer<typeof diskSwapStateSchema>;
+export type DiskSwapReplay = z.infer<typeof diskSwapReplaySchema>;
 
 export interface ObservationMismatch {
   readonly tick: number;
@@ -124,7 +184,7 @@ export class AmiberryRuntimeOracle implements RuntimeOracle {
 
   async queryDiskSwap(): Promise<DiskSwapState> {
     const state = await this.transport.request<unknown>("query-disk-swap");
-    return diskSwapStateSchema.parse(state);
+    return normalizeDiskSwapState(state);
   }
 
   async pause(): Promise<void> {
@@ -152,6 +212,66 @@ export class AmiberryRuntimeOracle implements RuntimeOracle {
     const state = runtimeStatePatchSchema.parse(structuredClone(stateInput));
     await this.transport.request("write-state", { state });
   }
+}
+
+/** Validate and canonically order a runtime disk state for reproducible evidence. */
+export function normalizeDiskSwapState(input: unknown): DiskSwapState {
+  const state = diskSwapStateSchema.parse(structuredClone(input));
+  return {
+    drives: [...state.drives].sort((left, right) => left.drive - right.drive),
+  };
+}
+
+/** Validate a journal and reject ambiguous same-tick operations. */
+export function normalizeDiskSwapJournal(input: unknown): DiskSwapJournal {
+  const journal = diskSwapJournalSchema.parse(structuredClone(input));
+  const seen = new Set<string>();
+  let previousTick = 0;
+  for (const event of journal.events) {
+    if (event.tick < previousTick) {
+      throw new Error("Disk-swap journal events must be ordered by tick");
+    }
+    const key = `${event.tick}:${event.drive}`;
+    if (seen.has(key)) {
+      throw new Error(`Disk-swap journal has multiple events for ${key}`);
+    }
+    seen.add(key);
+    previousTick = event.tick;
+  }
+  return {
+    schemaVersion: 1,
+    events: [...journal.events].sort((left, right) => left.tick - right.tick || left.drive - right.drive),
+  };
+}
+
+export type DiskSwapReplayOracle = Pick<
+  RuntimeOracle,
+  "pause" | "advanceFrame" | "insertFloppy" | "ejectFloppy" | "queryDiskSwap"
+>;
+
+/** Replay media changes at their exact frame boundaries and capture resulting states. */
+export async function replayDiskSwapJournal(
+  oracle: DiskSwapReplayOracle,
+  journalInput: unknown,
+): Promise<readonly DiskSwapReplaySnapshot[]> {
+  const journal = normalizeDiskSwapJournal(journalInput);
+  await oracle.pause();
+  const snapshots: DiskSwapReplaySnapshot[] = [];
+  let currentTick = 0;
+  for (const event of journal.events) {
+    while (currentTick < event.tick) {
+      await oracle.advanceFrame();
+      currentTick += 1;
+    }
+    if (event.action === "insert") {
+      if (event.artifactId === null) throw new Error("Insert event is missing its artifact ID");
+      await oracle.insertFloppy(event.drive, event.artifactId);
+    } else {
+      await oracle.ejectFloppy(event.drive);
+    }
+    snapshots.push({ event, state: normalizeDiskSwapState(await oracle.queryDiskSwap()) });
+  }
+  return structuredClone(snapshots);
 }
 
 export class InMemoryRuntimeObservationRepository implements RuntimeObservationRepository {
