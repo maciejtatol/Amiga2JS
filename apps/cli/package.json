@@ -12,6 +12,7 @@
     "inspect-adf-set": "node --import tsx src/index.ts inspect-adf-set",
     "write-adf-manifest": "node --import tsx src/index.ts write-adf-manifest",
     "plan-adf-extraction": "node --import tsx src/index.ts plan-adf-extraction",
+    "extract-adf-files": "node --import tsx src/index.ts extract-adf-files",
     "record-adf-extraction": "node --import tsx src/index.ts record-adf-extraction",
     "replay-disk-swap": "node --import tsx src/index.ts replay-disk-swap",
     "preflight": "node --import tsx src/index.ts preflight",

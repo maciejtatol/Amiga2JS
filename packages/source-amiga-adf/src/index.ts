@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
+import { mkdir } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { z } from "zod";
+
+const execFileAsync = promisify(execFile);
 
 const DD_BYTES = 80 * 2 * 11 * 512;
 const HD_BYTES = 80 * 2 * 22 * 512;
@@ -71,6 +76,61 @@ export interface AdfExtractionPlan {
   readonly nextActions: readonly string[];
 }
 
+export interface AdfExtractionCommandRunner {
+  run(command: string, args: readonly string[]): Promise<void>;
+}
+
+export class NodeAdfExtractionCommandRunner implements AdfExtractionCommandRunner {
+  async run(command: string, args: readonly string[]): Promise<void> {
+    await execFileAsync(command, [...args], { maxBuffer: 10 * 1024 * 1024 });
+  }
+}
+
+export const adfFilesystemExtractionResultSchema = z.object({
+  schemaVersion: z.literal(1),
+  method: z.literal("amigados-tool"),
+  inputPath: z.string().min(1),
+  outputDirectory: z.string().min(1),
+  command: z.string().min(1),
+  arguments: z.array(z.string().min(1)),
+}).strict();
+export type AdfFilesystemExtractionResult = z.infer<typeof adfFilesystemExtractionResultSchema>;
+
+export interface AdfFilesystemExtractionOptions {
+  readonly inputPath: string;
+  readonly outputDirectory: string;
+  readonly inspection: AdfInspection;
+  readonly command?: string;
+}
+
+/** Execute ADFlib's filesystem extractor for a conventional AmigaDOS disk. */
+export class AdfLibFilesystemExtractor {
+  constructor(
+    private readonly runner: AdfExtractionCommandRunner = new NodeAdfExtractionCommandRunner(),
+  ) {}
+
+  async extract(options: AdfFilesystemExtractionOptions): Promise<AdfFilesystemExtractionResult> {
+    const inputPath = z.string().min(1).parse(options.inputPath);
+    const outputDirectory = z.string().min(1).parse(options.outputDirectory);
+    const command = z.string().min(1).parse(options.command ?? "unadf");
+    const inspection = adfInspectionSchema.parse(structuredClone(options.inspection));
+    if (planAdfExtraction(inspection).status !== "filesystem-ready") {
+      throw new Error("ADF does not expose a conventional AmigaDOS filesystem");
+    }
+    await mkdir(outputDirectory, { recursive: true });
+    const args = ["-d", outputDirectory, inputPath] as const;
+    await this.runner.run(command, args);
+    return adfFilesystemExtractionResultSchema.parse({
+      schemaVersion: 1,
+      method: "amigados-tool",
+      inputPath,
+      outputDirectory,
+      command,
+      arguments: args,
+    });
+  }
+}
+
 export const adfExtractionMethodSchema = z.enum([
   "amigados-tool", "emulator-memory-dump", "manual",
 ]);
@@ -101,7 +161,7 @@ export const adfProvenanceSchema = z.object({
 }).strict();
 export type AdfProvenance = z.infer<typeof adfProvenanceSchema>;
 
-const adfInspectionSchema = z.object({
+export const adfInspectionSchema = z.object({
   byteLength: z.number().int().positive(),
   sectorCount: z.number().int().positive(),
   geometry: z.enum(["standard-dd", "standard-hd", "non-standard"]),
