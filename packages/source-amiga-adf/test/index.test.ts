@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AdfLibFilesystemExtractor,
   createAdfSetManifest,
   createAdfExtractionRecord,
   inspectAdf,
@@ -80,6 +81,44 @@ describe("inspectAdf", () => {
       status: "requires-emulator",
       method: "emulator-boot-capture",
     });
+  });
+
+  it("extracts conventional filesystems through an injected ADFlib runner", async () => {
+    const calls: Array<{ command: string; args: readonly string[] }> = [];
+    const extractor = new AdfLibFilesystemExtractor({
+      run: async (command, args) => { calls.push({ command, args }); },
+    });
+    const image = new Uint8Array(ddBytes);
+    image.set([0x44, 0x4f, 0x53, 0x00]);
+    new DataView(image.buffer).setUint32(880 * 512, 2, false);
+    await expect(extractor.extract({
+      inputPath: "disk.adf",
+      outputDirectory: "/private/tmp/retroport-adf-extraction-test",
+      inspection: inspectAdf(image),
+    })).resolves.toMatchObject({
+      schemaVersion: 1,
+      method: "amigados-tool",
+      inputPath: "disk.adf",
+      outputDirectory: "/private/tmp/retroport-adf-extraction-test",
+      command: "unadf",
+      arguments: ["-d", "/private/tmp/retroport-adf-extraction-test", "disk.adf"],
+    });
+    expect(calls).toEqual([{
+      command: "unadf",
+      args: ["-d", "/private/tmp/retroport-adf-extraction-test", "disk.adf"],
+    }]);
+  });
+
+  it("does not invoke a filesystem extractor for protected disks", async () => {
+    const runner = { run: async () => { throw new Error("runner must not be called"); } };
+    const extractor = new AdfLibFilesystemExtractor(runner);
+    const image = new Uint8Array(ddBytes);
+    image.set([0x44, 0x4f, 0x53, 0x00]);
+    await expect(extractor.extract({
+      inputPath: "protected.adf",
+      outputDirectory: "/private/tmp/retroport-adf-extraction-test",
+      inspection: inspectAdf(image),
+    })).rejects.toThrow("conventional AmigaDOS filesystem");
   });
 
   it("records an extracted artifact with its parent disk digest", () => {

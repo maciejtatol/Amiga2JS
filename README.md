@@ -89,6 +89,10 @@ memory dump with its parent disk digest:
 
 ```sh
 npm run plan-adf-extraction -w @retroport/cli -- --input path/to/disk.adf
+npm run extract-adf-files -w @retroport/cli -- \
+  --input path/to/disk.adf \
+  --output-dir extracted/disk-1 \
+  --record extracted/disk-1/command.json
 npm run record-adf-extraction -w @retroport/cli -- \
   --disk path/to/disk.adf \
   --artifact path/to/extracted.hunk \
@@ -150,6 +154,9 @@ retroport capture \
 
 The `--database` option is optional: captures are always printed as JSON, and
 when supplied they are also saved as an immutable, tick-ordered SQLite batch.
+
+Add `--capture-disk-swaps` to include the initial mounted disks and every
+frame-aligned media change in the JSON output.
 
 Verify captured observations against a Semantic IR:
 
@@ -309,7 +316,8 @@ disk-image/multi-disk work required before a real commercial game can be used.
    extraction remains Amiga-aware/emulator-assisted work.
 2. Add a multi-disk set manifest and Amiberry disk-swap capture events. Set
    validation, typed media operations, and deterministic journal replay are
-   available; live event capture remains pending.
+   available, as is frame-aligned polling capture; direct event-stream
+   ingestion remains pending.
 3. Run the complete vertical slice against a real Ghidra installation and
    Amiberry automation server (the provider-neutral boundaries are ready).
 4. Generate TypeScript from reviewed claims and compare state tick by tick

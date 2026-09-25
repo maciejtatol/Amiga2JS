@@ -5,7 +5,11 @@ validates executable loading, frame-aligned observations, state-patch
 experiments, and floppy media operations without requiring Amiberry in CI.
 
 Multi-disk evidence is represented as versioned `DiskSwapJournal` events. Each
-event has a frame tick, drive, action, and content-addressed disk artifact.
+journal records its initial mounted state and each subsequent event has a frame
+tick, drive, action, and content-addressed disk artifact.
 `normalizeDiskSwapJournal` rejects out-of-order or ambiguous same-drive events;
 `replayDiskSwapJournal` pauses the oracle, advances to each event boundary, and
 records the normalized disk state after every operation.
+
+`captureScenarioWithDiskSwaps` combines regular runtime observations with this
+journal by polling disk state after every frame boundary.

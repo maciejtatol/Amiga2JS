@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AmiberryRuntimeOracle,
   captureScenario,
+  captureScenarioWithDiskSwaps,
   findFirstObservationMismatch,
   HttpAmiberryTransport,
   InMemoryRuntimeObservationRepository,
@@ -66,6 +67,42 @@ describe("Amiberry runtime boundary", () => {
       [0, "RIGHT", 2], [1, "NONE", 2], [2, "LEFT", 0],
     ]);
     expect(observations[0]!.state).not.toBe(observations[1]!.state);
+  });
+
+  it("captures disk changes at frame boundaries", async () => {
+    const artifactA = `sha256:${"a".repeat(64)}`;
+    const artifactB = `sha256:${"b".repeat(64)}`;
+    const diskStates = [
+      { drives: [{ drive: 0, artifactId: artifactA }] },
+      { drives: [{ drive: 0, artifactId: artifactA }] },
+      { drives: [{ drive: 0, artifactId: artifactB }] },
+      { drives: [] },
+    ];
+    const oracle = {
+      pause: async () => undefined,
+      injectKeyboard: async () => undefined,
+      advanceFrame: async () => undefined,
+      readState: async () => ({ playerX: 1 }),
+      queryDiskSwap: async () => diskStates.shift() ?? { drives: [] },
+    };
+    await expect(captureScenarioWithDiskSwaps(oracle, {
+      id: "disked-movement",
+      inputs: ["NONE", "RIGHT", "NONE"],
+    }, ["playerX"])).resolves.toMatchObject({
+      observations: [
+        { scenarioId: "disked-movement", tick: 0 },
+        { scenarioId: "disked-movement", tick: 1 },
+        { scenarioId: "disked-movement", tick: 2 },
+      ],
+      diskSwapJournal: {
+        schemaVersion: 1,
+        initialState: { drives: [{ drive: 0, artifactId: artifactA }] },
+        events: [
+          { tick: 1, action: "insert", drive: 0, artifactId: artifactB },
+          { tick: 2, action: "eject", drive: 0, artifactId: null },
+        ],
+      },
+    });
   });
 
   it("runs a one-frame state patch experiment in a fixed order", async () => {

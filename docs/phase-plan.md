@@ -88,8 +88,9 @@ format status; unsupported formats produce warnings rather than false success.
 Status: extraction planning is implemented via `plan-adf-extraction`, and
 `record-adf-extraction` now creates a parent-disk-linked artifact record. HUNK
 records are decoded and structurally preflighted before they are recorded;
-actual AmigaDOS file extraction and emulator-assisted memory/loader capture
-remain pending.
+standard AmigaDOS extraction is available through the injectable ADFlib
+`unadf` adapter and `extract-adf-files`; emulator-assisted memory/loader
+capture remains pending.
 
 - Add an Amiga disk-image adapter for filesystem extraction where possible.
 - Fall back to emulator-assisted boot capture for custom loaders, packed code,
@@ -106,8 +107,10 @@ record, and analysts can distinguish disk bytes from executable bytes.
 Status: ordered-set discovery and pre-extraction validation are available via
 `retroport inspect-adf-set`. The Amiberry runtime boundary now exposes typed
 insert/eject/query disk operations, and validated disk-swap journals can be
-replayed deterministically with `retroport replay-disk-swap`. Live emulator
-event capture remains pending.
+replayed deterministically with `retroport replay-disk-swap`. Frame-aligned
+polling capture is available through `captureScenarioWithDiskSwaps` and the
+`--capture-disk-swaps` CLI option; direct emulator event-stream ingestion
+remains pending.
 
 - Model a disk set with stable set ID, ordered disk IDs, labels, boot disk,
   required Kickstart/configuration, and per-disk hashes.

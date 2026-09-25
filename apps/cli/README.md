@@ -25,6 +25,11 @@ Use `retroport plan-adf-extraction --input <file.adf>` to select the next safe
 extraction boundary. Custom boot or packed images return a non-zero status and
 identify the emulator-assisted actions still required.
 
+Use `retroport extract-adf-files --input <file.adf> --output-dir <directory>
+[--command <unadf>] [--record <result.json>]` to invoke ADFlib's `unadf`
+extractor for a conventional AmigaDOS volume. The command refuses custom,
+packed, or protected images before starting the external tool.
+
 Use `retroport record-adf-extraction --disk <disk.adf> --artifact <file>
 --output <record.json> --format <hunk|raw-memory-dump|unknown> --method
 <amigados-tool|emulator-memory-dump|manual>` to link an extracted artifact to
@@ -72,6 +77,9 @@ when reconstruction, verification, or grading is blocked.
 `retroport capture` always writes observations as JSON to stdout. Pass
 `--database captures.sqlite` to persist the same validated capture as an
 immutable, tick-ordered SQLite batch for later verification.
+
+Add `--capture-disk-swaps` to poll Amiberry's disk state at each frame and emit
+the observations together with an initial-state-aware disk-swap journal.
 
 The repository also ships a Compose service for local runs. Use
 `docker compose run --rm retroport` to execute the acceptance gate with a

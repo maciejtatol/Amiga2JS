@@ -93,6 +93,7 @@ export type DiskSwapEvent = z.infer<typeof diskSwapEventSchema>;
 
 export const diskSwapJournalSchema = z.object({
   schemaVersion: z.literal(1),
+  initialState: diskSwapStateSchema.optional(),
   events: z.array(diskSwapEventSchema),
 }).strict();
 export type DiskSwapJournal = z.infer<typeof diskSwapJournalSchema>;
@@ -110,6 +111,12 @@ export const diskSwapReplaySchema = z.object({
   }).strict()),
 }).strict();
 export type DiskSwapReplay = z.infer<typeof diskSwapReplaySchema>;
+
+export const diskSwapCaptureSchema = z.object({
+  observations: z.array(runtimeObservationSchema),
+  diskSwapJournal: diskSwapJournalSchema,
+}).strict();
+export type DiskSwapCapture = z.infer<typeof diskSwapCaptureSchema>;
 
 export interface ObservationMismatch {
   readonly tick: number;
@@ -240,6 +247,9 @@ export function normalizeDiskSwapJournal(input: unknown): DiskSwapJournal {
   }
   return {
     schemaVersion: 1,
+    ...(journal.initialState === undefined
+      ? {}
+      : { initialState: normalizeDiskSwapState(journal.initialState) }),
     events: [...journal.events].sort((left, right) => left.tick - right.tick || left.drive - right.drive),
   };
 }
@@ -258,6 +268,11 @@ export async function replayDiskSwapJournal(
   await oracle.pause();
   const snapshots: DiskSwapReplaySnapshot[] = [];
   let currentTick = 0;
+  for (const entry of journal.initialState?.drives ?? []) {
+    if (entry.artifactId !== null) {
+      await oracle.insertFloppy(entry.drive, entry.artifactId);
+    }
+  }
   for (const event of journal.events) {
     while (currentTick < event.tick) {
       await oracle.advanceFrame();
@@ -272,6 +287,67 @@ export async function replayDiskSwapJournal(
     snapshots.push({ event, state: normalizeDiskSwapState(await oracle.queryDiskSwap()) });
   }
   return structuredClone(snapshots);
+}
+
+export type DiskSwapCaptureOracle = ScenarioOracle & Pick<RuntimeOracle, "queryDiskSwap">;
+
+function diskStateByDrive(state: DiskSwapState): Map<number, string | null> {
+  return new Map(state.drives.map(({ drive, artifactId }) => [drive, artifactId]));
+}
+
+/** Capture frame-aligned observations and the media changes seen between frames. */
+export async function captureScenarioWithDiskSwaps(
+  oracle: DiskSwapCaptureOracle,
+  scenarioInput: RuntimeScenario,
+  addresses: readonly string[],
+): Promise<DiskSwapCapture> {
+  const scenario = runtimeScenarioSchema.parse(structuredClone(scenarioInput));
+  await oracle.pause();
+  const initialState = normalizeDiskSwapState(await oracle.queryDiskSwap());
+  const previousByDrive = diskStateByDrive(initialState);
+  const observations: RuntimeObservation[] = [];
+  const events: DiskSwapEvent[] = [];
+
+  for (const [tick, input] of scenario.inputs.entries()) {
+    await oracle.injectKeyboard(input);
+    await oracle.advanceFrame();
+    const state = runtimeObservationSchema.parse({
+      scenarioId: scenario.id,
+      tick,
+      input,
+      state: structuredClone(await oracle.readState(addresses)),
+    });
+    observations.push(state);
+
+    const currentState = normalizeDiskSwapState(await oracle.queryDiskSwap());
+    const currentByDrive = diskStateByDrive(currentState);
+    const drives = [...new Set([
+      ...previousByDrive.keys(),
+      ...currentByDrive.keys(),
+    ])].sort((left, right) => left - right);
+    for (const drive of drives) {
+      const previousArtifact = previousByDrive.get(drive) ?? null;
+      const currentArtifact = currentByDrive.get(drive) ?? null;
+      if (previousArtifact === currentArtifact) continue;
+      events.push({
+        tick,
+        action: currentArtifact === null ? "eject" : "insert",
+        drive,
+        artifactId: currentArtifact,
+      });
+    }
+    previousByDrive.clear();
+    for (const [drive, artifactId] of currentByDrive) previousByDrive.set(drive, artifactId);
+  }
+
+  return diskSwapCaptureSchema.parse({
+    observations,
+    diskSwapJournal: normalizeDiskSwapJournal({
+      schemaVersion: 1,
+      initialState,
+      events,
+    }),
+  });
 }
 
 export class InMemoryRuntimeObservationRepository implements RuntimeObservationRepository {

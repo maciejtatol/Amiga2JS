@@ -5,6 +5,7 @@ import { diagnoseProject, loadCompatibilityRules } from "@retroport/compatibilit
 import { horizontalMovementIRSchema, projectManifestSchema } from "@retroport/schemas";
 import {
   captureScenario,
+  captureScenarioWithDiskSwaps,
   diskSwapReplaySchema,
   HttpAmiberryTransport,
   runStatePatchExperiment,
@@ -27,11 +28,13 @@ import {
   verifyFixtureArtifact,
 } from "@retroport/source-amiga-hunk";
 import {
+  AdfLibFilesystemExtractor,
   adfProvenanceSchema,
   createAdfExtractionRecord,
   createAdfSetManifest,
   inspectAdf,
   inspectAdfSet,
+  NodeAdfExtractionCommandRunner,
   planAdfExtraction,
   parseAdfDiskNumber,
 } from "@retroport/source-amiga-adf";
@@ -78,6 +81,10 @@ async function run(): Promise<void> {
   }
   if (command === "plan-adf-extraction") {
     await runPlanAdfExtraction(args);
+    return;
+  }
+  if (command === "extract-adf-files") {
+    await runExtractAdfFiles(args);
     return;
   }
   if (command === "record-adf-extraction") {
@@ -129,7 +136,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport write-adf-manifest ... | retroport plan-adf-extraction ... | retroport record-adf-extraction ... | retroport replay-disk-swap ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport write-adf-manifest ... | retroport plan-adf-extraction ... | retroport extract-adf-files ... | retroport record-adf-extraction ... | retroport replay-disk-swap ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -186,6 +193,32 @@ async function runPlanAdfExtraction(args: string[]): Promise<void> {
   const plan = planAdfExtraction(inspection);
   console.log(JSON.stringify({ file: inputPath, inspection, plan }, null, 2));
   if (plan.status !== "filesystem-ready") process.exitCode = 1;
+}
+
+async function runExtractAdfFiles(args: string[]): Promise<void> {
+  const inputPath = optionValue(args, "--input");
+  const outputDirectory = optionValue(args, "--output-dir");
+  if (!inputPath || !outputDirectory) {
+    throw new Error("extract-adf-files requires --input <file.adf> and --output-dir <directory>");
+  }
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const resolvedInputPath = resolve(invocationDirectory, inputPath);
+  const inspection = inspectAdf(await readFile(resolvedInputPath));
+  const command = optionValue(args, "--command");
+  const result = await new AdfLibFilesystemExtractor(new NodeAdfExtractionCommandRunner()).extract({
+    inputPath: resolvedInputPath,
+    outputDirectory: resolve(invocationDirectory, outputDirectory),
+    inspection,
+    ...(command === undefined
+      ? {}
+      : { command }),
+  });
+  const output = JSON.stringify(result, null, 2);
+  const recordPath = optionValue(args, "--record");
+  if (recordPath) {
+    await writeFile(resolve(invocationDirectory, recordPath), `${output}\n`, "utf8");
+  }
+  console.log(output);
 }
 
 async function runRecordAdfExtraction(args: string[]): Promise<void> {
@@ -432,7 +465,10 @@ async function runCapture(args: string[]): Promise<void> {
   if (addresses.length === 0) throw new Error("capture requires at least one --addresses value");
   const oracle = new AmiberryRuntimeOracle(new HttpAmiberryTransport(required("--server")));
   await oracle.load(required("--artifact"));
-  const observations = await captureScenario(oracle, scenario, addresses);
+  const diskCapture = args.includes("--capture-disk-swaps")
+    ? await captureScenarioWithDiskSwaps(oracle, scenario, addresses)
+    : undefined;
+  const observations = diskCapture?.observations ?? await captureScenario(oracle, scenario, addresses);
   const databasePath = optionValue(args, "--database");
   if (databasePath) {
     // Keep SQLite optional for commands that only inspect or analyze inputs.
@@ -444,7 +480,7 @@ async function runCapture(args: string[]): Promise<void> {
       database.close();
     }
   }
-  console.log(JSON.stringify(observations, null, 2));
+  console.log(JSON.stringify(diskCapture ?? observations, null, 2));
 }
 
 async function runExperiment(args: string[]): Promise<void> {
