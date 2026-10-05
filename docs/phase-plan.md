@@ -89,7 +89,8 @@ Status: extraction planning is implemented via `plan-adf-extraction`, and
 `record-adf-extraction` now creates a parent-disk-linked artifact record. HUNK
 records are decoded and structurally preflighted before they are recorded;
 standard AmigaDOS extraction is available through the injectable ADFlib
-`unadf` adapter and `extract-adf-files`; emulator-assisted memory/loader
+`unadf` adapter and `extract-adf-files`, including optional persistence in the
+content-addressed SQLite artifact store; emulator-assisted memory/loader
 capture remains pending.
 
 - Use the injectable Amiga disk-image adapter for filesystem extraction where
@@ -99,7 +100,9 @@ capture remains pending.
 - Fall back to emulator-assisted boot capture for custom loaders, packed code,
   or protected disks.
 - Persist selected extracted executable(s) as content-addressed artifacts and
-  retain the parent disk digest and extraction method.
+  retain the parent disk digest and extraction method. The extraction command
+  now persists the complete file inventory when `--database` is supplied;
+  executable selection and HUNK classification remain explicit.
 - Run HUNK preflight only on extracted HUNK candidates.
 
 Gate: each analyzed executable has a traceable parent disk and extraction

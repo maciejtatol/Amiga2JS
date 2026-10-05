@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readdir, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import { diagnoseProject, loadCompatibilityRules } from "@retroport/compatibility";
 import { horizontalMovementIRSchema, projectManifestSchema } from "@retroport/schemas";
 import {
@@ -29,6 +29,7 @@ import {
 } from "@retroport/source-amiga-hunk";
 import {
   AdfLibFilesystemExtractor,
+  adfFilesystemExtractionResultSchema,
   adfProvenanceSchema,
   createAdfExtractionRecord,
   createAdfSetManifest,
@@ -203,17 +204,39 @@ async function runExtractAdfFiles(args: string[]): Promise<void> {
   }
   const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
   const resolvedInputPath = resolve(invocationDirectory, inputPath);
+  const resolvedOutputDirectory = resolve(invocationDirectory, outputDirectory);
   const inspection = inspectAdf(await readFile(resolvedInputPath));
   const command = optionValue(args, "--command");
   const result = await new AdfLibFilesystemExtractor(new NodeAdfExtractionCommandRunner()).extract({
     inputPath: resolvedInputPath,
-    outputDirectory: resolve(invocationDirectory, outputDirectory),
+    outputDirectory: resolvedOutputDirectory,
     inspection,
     ...(command === undefined
       ? {}
       : { command }),
   });
-  const output = JSON.stringify(result, null, 2);
+  const databasePath = optionValue(args, "--database");
+  let outputResult = result;
+  if (databasePath) {
+    const { ContentAddressedArtifactStore, DatabaseSync } = await import("@retroport/persistence");
+    const database = new DatabaseSync(resolve(invocationDirectory, databasePath));
+    try {
+      const store = new ContentAddressedArtifactStore(database);
+      const files = await Promise.all(result.files.map(async (file) => {
+        const filePath = resolve(resolvedOutputDirectory, file.relativePath);
+        const pathFromRoot = relative(resolvedOutputDirectory, filePath);
+        if (isAbsolute(pathFromRoot) || pathFromRoot.startsWith("..")) {
+          throw new Error(`Extracted file escapes output directory: ${file.relativePath}`);
+        }
+        const artifactId = await store.put(await readFile(filePath));
+        return { ...file, artifactId };
+      }));
+      outputResult = adfFilesystemExtractionResultSchema.parse({ ...result, files });
+    } finally {
+      database.close();
+    }
+  }
+  const output = JSON.stringify(outputResult, null, 2);
   const recordPath = optionValue(args, "--record");
   if (recordPath) {
     await writeFile(resolve(invocationDirectory, recordPath), `${output}\n`, "utf8");
