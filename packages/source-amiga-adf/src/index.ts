@@ -99,6 +99,7 @@ export const adfFilesystemExtractionResultSchema = z.object({
     relativePath: z.string().min(1),
     byteLength: z.number().int().positive(),
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    artifactId: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
   }).strict()),
 }).strict();
 export type AdfFilesystemExtractionResult = z.infer<typeof adfFilesystemExtractionResultSchema>;

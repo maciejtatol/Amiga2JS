@@ -26,10 +26,13 @@ extraction boundary. Custom boot or packed images return a non-zero status and
 identify the emulator-assisted actions still required.
 
 Use `retroport extract-adf-files --input <file.adf> --output-dir <directory>
-[--command <unadf>] [--record <result.json>]` to invoke ADFlib's `unadf`
+[--command <unadf>] [--record <result.json>] [--database <artifacts.sqlite>]`
+to invoke ADFlib's `unadf`
 extractor for a conventional AmigaDOS volume. The command refuses custom,
 packed, or protected images before starting the external tool and reports a
-sorted content digest for every extracted file.
+sorted content digest for every extracted file. With `--database`, each file is
+also stored in the content-addressed SQLite artifact store and reports its
+`sha256:` artifact ID.
 
 Use `retroport record-adf-extraction --disk <disk.adf> --artifact <file>
 --output <record.json> --format <hunk|raw-memory-dump|unknown> --method
