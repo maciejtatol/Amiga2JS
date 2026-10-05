@@ -91,7 +91,8 @@ records are decoded and structurally preflighted before they are recorded;
 standard AmigaDOS extraction is available through the injectable ADFlib
 `unadf` adapter and `extract-adf-files`, including optional persistence in the
 content-addressed SQLite artifact store; emulator-assisted memory/loader
-capture remains pending.
+capture remains pending. An explicit `--candidate` path can now be HUNK
+preflighted and emitted as a parent-linked extraction record.
 
 - Use the injectable Amiga disk-image adapter for filesystem extraction where
   possible.
@@ -102,7 +103,8 @@ capture remains pending.
 - Persist selected extracted executable(s) as content-addressed artifacts and
   retain the parent disk digest and extraction method. The extraction command
   now persists the complete file inventory when `--database` is supplied;
-  executable selection and HUNK classification remain explicit.
+  executable selection is explicit, and linked multi-hunk HUNK structure is
+  now validated before a candidate record is emitted.
 - Run HUNK preflight only on extracted HUNK candidates.
 
 Gate: each analyzed executable has a traceable parent disk and extraction
