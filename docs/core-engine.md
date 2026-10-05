@@ -114,8 +114,10 @@ The CLI composes the static boundary through `retroport analyze`; all Ghidra
 paths are explicit command arguments, and the exporter output is schema-
 validated before it is printed.
 
-The `retroport inspect` command validates the repository's minimal HUNK shape
+The `retroport inspect` command validates linked Amiga HUNK section structure
 before analysis and accepts either binary input or hexadecimal fixture files.
+The deterministic fixture builder retains its stricter single-section parser
+for reproducible stripping and manifest preflight.
 
 The `retroport preflight` command additionally validates the artifact SHA-256
 against its manifest and returns the normalized HUNK summary. A digest mismatch

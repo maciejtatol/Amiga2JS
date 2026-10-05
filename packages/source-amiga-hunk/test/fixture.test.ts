@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildMicroFixture,
   inspectHunk,
+  inspectHunkExecutable,
   runHorizontalMovement,
   stripHunk,
   verifyFixtureArtifact,
@@ -14,6 +15,26 @@ describe("Amiga m68k horizontal fixture", () => {
       "000003f30000000000000001000000000000000000000005000003e900000005000a0002000200040000000048554e4b4e754e71000003f2",
     );
     expect(inspectHunk(binary)).toEqual({ hunkTypes: [0x3e9], codeBytes: 20, hasSymbols: false, hasDebug: false });
+  });
+
+  it("inspects linked multi-hunk executables", () => {
+    const words = [
+      0x3f3, 0, 2, 0, 1, 1, 1,
+      0x3e9, 1, 0x4e71,
+      0x3ec, 1, 1, 0, 0,
+      0x3f2,
+      0x3ea, 1, 0x12345678,
+      0x3f2,
+    ];
+    const binary = new Uint8Array(words.length * 4);
+    const view = new DataView(binary.buffer);
+    words.forEach((word, index) => view.setUint32(index * 4, word, false));
+    expect(inspectHunkExecutable(binary)).toEqual({
+      hunkTypes: [0x3e9, 0x3ec, 0x3ea],
+      codeBytes: 4,
+      hasSymbols: false,
+      hasDebug: false,
+    });
   });
 
   it("strips non-load records deterministically", () => {

@@ -3,6 +3,10 @@ import { z } from "zod";
 
 const HUNK_HEADER = 0x3f3;
 const HUNK_CODE = 0x3e9;
+const HUNK_DATA = 0x3ea;
+const HUNK_BSS = 0x3eb;
+const HUNK_RELOC16 = 0x3ed;
+const HUNK_RELOC8 = 0x3ee;
 const HUNK_END = 0x3f2;
 const HUNK_SYMBOL = 0x3f0;
 const HUNK_DEBUG = 0x3f1;
@@ -160,6 +164,111 @@ export function inspectHunk(binary: Uint8Array): HunkSummary {
   }
   if (!ended) throw new Error("HUNK binary has no END record");
   return { hunkTypes, codeBytes, hasSymbols, hasDebug };
+}
+
+/**
+ * Inspect a linked executable HUNK with multiple CODE/DATA/BSS sections.
+ * This deliberately validates structure only; relocation semantics remain a
+ * later static-analysis concern.
+ */
+export function inspectHunkExecutable(binary: Uint8Array): HunkSummary {
+  const input = readWords(binary);
+  let cursor = 0;
+  if (input[cursor++] !== HUNK_HEADER) throw new Error("Not an Amiga HUNK binary");
+
+  // Resident-library names precede the hunk table and are terminated by zero.
+  while (true) {
+    const nameWords = input[cursor++];
+    if (nameWords === undefined) throw new Error("Truncated HUNK resident-name table");
+    if (nameWords === 0) break;
+    cursor = skipWords(input, cursor, nameWords, "HUNK resident-name table");
+  }
+  const tableSize = input[cursor++];
+  const firstHunk = input[cursor++];
+  const lastHunk = input[cursor++];
+  if (tableSize === undefined || firstHunk === undefined || lastHunk === undefined
+    || tableSize === 0 || lastHunk < firstHunk || lastHunk - firstHunk + 1 !== tableSize) {
+    throw new Error("Invalid HUNK section table");
+  }
+  cursor = skipWords(input, cursor, tableSize, "HUNK section table");
+
+  const hunkTypes: number[] = [];
+  let codeBytes = 0;
+  let hasSymbols = false;
+  let hasDebug = false;
+  for (let hunkIndex = 0; hunkIndex < tableSize; hunkIndex += 1) {
+    const hunkType = input[cursor++];
+    if (hunkType === undefined || ![HUNK_CODE, HUNK_DATA, HUNK_BSS].includes(hunkType)) {
+      throw new Error("Unsupported or truncated HUNK section");
+    }
+    const sizeWords = input[cursor++];
+    if (sizeWords === undefined) throw new Error("Truncated HUNK section size");
+    const sectionWords = sizeWords & 0x3fffffff;
+    if (sectionWords === 0 && hunkType !== HUNK_BSS) {
+      throw new Error("HUNK CODE/DATA section must not be empty");
+    }
+    hunkTypes.push(hunkType);
+    if (hunkType === HUNK_CODE) codeBytes += sectionWords * 4;
+    if (hunkType !== HUNK_BSS) cursor = skipWords(input, cursor, sectionWords, "HUNK section data");
+
+    let ended = false;
+    while (cursor < input.length) {
+      const recordType = input[cursor++];
+      if (recordType === undefined) throw new Error("Truncated HUNK record");
+      if (recordType === HUNK_END) {
+        ended = true;
+        break;
+      }
+      hunkTypes.push(recordType);
+      if ([HUNK_RELOC32, HUNK_RELOC16, HUNK_RELOC8].includes(recordType)) {
+        cursor = skipRelocations(input, cursor, `HUNK relocation ${recordType.toString(16)}`);
+      } else if (recordType === HUNK_SYMBOL) {
+        hasSymbols = true;
+        cursor = skipSymbols(input, cursor);
+      } else if (recordType === HUNK_DEBUG) {
+        hasDebug = true;
+        cursor = skipCountedRecord(input, cursor, "HUNK_DEBUG");
+      } else if (recordType === HUNK_CODE || recordType === HUNK_DATA || recordType === HUNK_BSS) {
+        throw new Error("HUNK section appears before the previous section ended");
+      } else {
+        throw new Error(`Unsupported HUNK record: 0x${recordType.toString(16)}`);
+      }
+    }
+    if (!ended) throw new Error("HUNK section has no END record");
+  }
+  if (cursor !== input.length) throw new Error("HUNK binary has trailing data");
+  return { hunkTypes, codeBytes, hasSymbols, hasDebug };
+}
+
+function skipWords(input: readonly number[], cursor: number, count: number, label: string): number {
+  if (!Number.isSafeInteger(count) || count < 0 || cursor + count > input.length) {
+    throw new Error(`Truncated ${label}`);
+  }
+  return cursor + count;
+}
+
+function skipCountedRecord(input: readonly number[], cursor: number, label: string): number {
+  const count = input[cursor++];
+  if (count === undefined) throw new Error(`Truncated ${label}`);
+  return skipWords(input, cursor, count, label);
+}
+
+function skipRelocations(input: readonly number[], cursor: number, label: string): number {
+  while (true) {
+    const count = input[cursor++];
+    if (count === undefined) throw new Error(`Truncated ${label}`);
+    if (count === 0) return cursor;
+    cursor = skipWords(input, cursor, 1 + count, label);
+  }
+}
+
+function skipSymbols(input: readonly number[], cursor: number): number {
+  while (true) {
+    const nameWords = input[cursor++];
+    if (nameWords === undefined) throw new Error("Truncated HUNK_SYMBOL");
+    if (nameWords === 0) return cursor;
+    cursor = skipWords(input, cursor, nameWords + 1, "HUNK_SYMBOL");
+  }
 }
 
 /** Validate a fixture's digest and HUNK structure before external analysis. */

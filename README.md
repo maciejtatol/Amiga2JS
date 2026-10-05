@@ -93,6 +93,7 @@ npm run extract-adf-files -w @retroport/cli -- \
   --input path/to/disk.adf \
   --output-dir extracted/disk-1 \
   --database artifacts.sqlite \
+  --candidate game/main \
   --record extracted/disk-1/command.json
 npm run record-adf-extraction -w @retroport/cli -- \
   --disk path/to/disk.adf \

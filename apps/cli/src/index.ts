@@ -24,11 +24,12 @@ import {
 } from "@retroport/static-analysis";
 import {
   fixtureManifestSchema,
-  inspectHunk,
+  inspectHunkExecutable,
   verifyFixtureArtifact,
 } from "@retroport/source-amiga-hunk";
 import {
   AdfLibFilesystemExtractor,
+  type AdfExtractedArtifact,
   adfFilesystemExtractionResultSchema,
   adfProvenanceSchema,
   createAdfExtractionRecord,
@@ -174,7 +175,7 @@ async function runInspect(args: string[]): Promise<void> {
   if (!inputPath) throw new Error("inspect requires --input <file>");
   const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
   const input = decodeHunkInput(await readFile(resolve(invocationDirectory, inputPath)));
-  console.log(JSON.stringify(inspectHunk(input), null, 2));
+  console.log(JSON.stringify(inspectHunkExecutable(input), null, 2));
 }
 
 async function runInspectAdf(args: string[]): Promise<void> {
@@ -215,6 +216,32 @@ async function runExtractAdfFiles(args: string[]): Promise<void> {
       ? {}
       : { command }),
   });
+  const resolveExtractedFile = (relativePath: string): string => {
+    const filePath = resolve(resolvedOutputDirectory, relativePath);
+    const pathFromRoot = relative(resolvedOutputDirectory, filePath);
+    if (isAbsolute(pathFromRoot) || pathFromRoot.startsWith("..")) {
+      throw new Error(`Extracted file escapes output directory: ${relativePath}`);
+    }
+    return filePath;
+  };
+  const candidatePath = optionValue(args, "--candidate");
+  let candidate: AdfExtractedArtifact | undefined;
+  if (candidatePath !== undefined) {
+    const file = result.files.find(({ relativePath }) => relativePath === candidatePath);
+    if (!file) throw new Error(`Candidate is not in the extracted file inventory: ${candidatePath}`);
+    const artifact = decodeHunkInput(
+      await readFile(resolveExtractedFile(candidatePath)),
+      "candidate",
+    );
+    inspectHunkExecutable(artifact);
+    candidate = createAdfExtractionRecord({
+      parentDiskSha256: result.parentDiskSha256,
+      artifact,
+      artifactFormat: "hunk",
+      extractionMethod: "amigados-tool",
+      sourceFile: candidatePath,
+    });
+  }
   const databasePath = optionValue(args, "--database");
   let outputResult = result;
   if (databasePath) {
@@ -223,11 +250,7 @@ async function runExtractAdfFiles(args: string[]): Promise<void> {
     try {
       const store = new ContentAddressedArtifactStore(database);
       const files = await Promise.all(result.files.map(async (file) => {
-        const filePath = resolve(resolvedOutputDirectory, file.relativePath);
-        const pathFromRoot = relative(resolvedOutputDirectory, filePath);
-        if (isAbsolute(pathFromRoot) || pathFromRoot.startsWith("..")) {
-          throw new Error(`Extracted file escapes output directory: ${file.relativePath}`);
-        }
+        const filePath = resolveExtractedFile(file.relativePath);
         const artifactId = await store.put(await readFile(filePath));
         return { ...file, artifactId };
       }));
@@ -236,7 +259,10 @@ async function runExtractAdfFiles(args: string[]): Promise<void> {
       database.close();
     }
   }
-  const output = JSON.stringify(outputResult, null, 2);
+  const outputPayload = candidate === undefined
+    ? outputResult
+    : { ...outputResult, candidate };
+  const output = JSON.stringify(outputPayload, null, 2);
   const recordPath = optionValue(args, "--record");
   if (recordPath) {
     await writeFile(resolve(invocationDirectory, recordPath), `${output}\n`, "utf8");
@@ -271,7 +297,7 @@ async function runRecordAdfExtraction(args: string[]): Promise<void> {
   const artifact = format === "hunk"
     ? decodeHunkInput(artifactInput, "artifact")
     : artifactInput;
-  if (format === "hunk") inspectHunk(artifact);
+  if (format === "hunk") inspectHunkExecutable(artifact);
   const notes = optionValue(args, "--notes");
   const record = createAdfExtractionRecord({
     parentDiskSha256: diskInspection.sha256,
