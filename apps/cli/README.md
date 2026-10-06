@@ -49,6 +49,14 @@ Use `retroport replay-disk-swap --journal <journal.json> --server <url>
 against Amiberry. The command pauses first, advances to each event tick, and
 records the normalized disk state after every insert/eject operation.
 
+Use `retroport import-runtime-capture --input <capture.json>
+[--output <capture.json>] [--database <captures.sqlite>]` to normalize an
+event-stream capture into canonical observations and a disk-swap journal. The
+input schema is versioned and accepts observation, initial-disk-state, and
+disk-swap events in any order; duplicate observation ticks or initial states are
+rejected. The optional database stores the observation batch for later
+verification.
+
 For headless static analysis, pass the repository's
 `tools/ghidra/RetroPortSnapshot.java` script to `retroport analyze`.
 
