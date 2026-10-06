@@ -13,3 +13,10 @@ records the normalized disk state after every operation.
 
 `captureScenarioWithDiskSwaps` combines regular runtime observations with this
 journal by polling disk state after every frame boundary.
+
+Adapters that expose an event stream can write the versioned
+`runtimeCaptureLogSchema` envelope and pass it to `ingestRuntimeCaptureLog`.
+The importer sorts observations by frame, validates that one scenario and one
+initial disk state are represented, and emits the same `DiskSwapCapture` shape
+used by live polling. This keeps replay and Phase 0 independent from the
+transport that produced the events.

@@ -117,13 +117,17 @@ Status: ordered-set discovery and pre-extraction validation are available via
 insert/eject/query disk operations, and validated disk-swap journals can be
 replayed deterministically with `retroport replay-disk-swap`. Frame-aligned
 polling capture is available through `captureScenarioWithDiskSwaps` and the
-`--capture-disk-swaps` CLI option; direct emulator event-stream ingestion
-remains pending.
+`--capture-disk-swaps` CLI option. Versioned event-stream ingestion is now
+available through `ingestRuntimeCaptureLog` and
+`retroport import-runtime-capture`; a concrete Amiberry recorder still needs
+to emit that envelope.
 
 - Model a disk set with stable set ID, ordered disk IDs, labels, boot disk,
   required Kickstart/configuration, and per-disk hashes.
 - Capture disk insert/eject/swap requests as timestamped or frame-aligned
   evidence.
+- Normalize recorder events into one canonical observation and disk-swap
+  capture before persistence or Phase 0 analysis.
 - Let the Amiberry adapter mount the correct disk and resume deterministic
   capture after a swap.
 - Reject incomplete or ambiguously ordered sets before conversion.
