@@ -320,7 +320,8 @@ disk-image/multi-disk work required before a real commercial game can be used.
 2. Add a multi-disk set manifest and Amiberry disk-swap capture events. Set
    validation, typed media operations, and deterministic journal replay are
    available, as is frame-aligned polling capture; direct event-stream
-   ingestion remains pending.
+   ingestion is available through the versioned `import-runtime-capture`
+   command, while a concrete Amiberry recorder remains to be wired up.
 3. Run the complete vertical slice against a real Ghidra installation and
    Amiberry automation server (the provider-neutral boundaries are ready).
 4. Generate TypeScript from reviewed claims and compare state tick by tick

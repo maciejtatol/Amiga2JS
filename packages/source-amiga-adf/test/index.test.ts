@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   AdfLibFilesystemExtractor,
   createAdfSetManifest,
@@ -86,7 +88,7 @@ describe("inspectAdf", () => {
 
   it("extracts conventional filesystems through an injected ADFlib runner", async () => {
     const calls: Array<{ command: string; args: readonly string[] }> = [];
-    const outputDirectory = await mkdtemp("/private/tmp/retroport-adf-extraction-test-");
+    const outputDirectory = await mkdtemp(join(tmpdir(), "retroport-adf-extraction-test-"));
     const extractor = new AdfLibFilesystemExtractor({
       run: async (command, args) => {
         calls.push({ command, args });
@@ -131,7 +133,7 @@ describe("inspectAdf", () => {
     image.set([0x44, 0x4f, 0x53, 0x00]);
     await expect(extractor.extract({
       inputPath: "protected.adf",
-      outputDirectory: "/private/tmp/retroport-adf-extraction-test",
+      outputDirectory: join(tmpdir(), "retroport-adf-extraction-test"),
       inspection: inspectAdf(image),
     })).rejects.toThrow("conventional AmigaDOS filesystem");
   });

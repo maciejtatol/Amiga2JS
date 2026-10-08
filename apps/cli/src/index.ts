@@ -8,6 +8,7 @@ import {
   captureScenarioWithDiskSwaps,
   diskSwapReplaySchema,
   HttpAmiberryTransport,
+  ingestRuntimeCaptureLog,
   runStatePatchExperiment,
   runtimeObservationSchema,
   runtimeInputSchema,
@@ -97,6 +98,10 @@ async function run(): Promise<void> {
     await runReplayDiskSwap(args);
     return;
   }
+  if (command === "import-runtime-capture") {
+    await runImportRuntimeCapture(args);
+    return;
+  }
   if (command === "preflight") {
     await runPreflight(args);
     return;
@@ -138,7 +143,7 @@ async function run(): Promise<void> {
     return;
   }
   if (command !== "doctor") {
-    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport write-adf-manifest ... | retroport plan-adf-extraction ... | retroport extract-adf-files ... | retroport record-adf-extraction ... | retroport replay-disk-swap ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
+    throw new Error("Usage: retroport doctor ... | retroport inspect ... | retroport inspect-adf ... | retroport inspect-adf-set ... | retroport write-adf-manifest ... | retroport plan-adf-extraction ... | retroport extract-adf-files ... | retroport record-adf-extraction ... | retroport replay-disk-swap ... | retroport import-runtime-capture ... | retroport preflight ... | retroport reconstruct ... | retroport generate ... | retroport grade ... | retroport analyze ... | retroport capture ... | retroport experiment ... | retroport phase0 ... | retroport phase0-captured ... | retroport verify ... | retroport acceptance");
   }
   const manifestPath = optionValue(args, "--manifest");
   const rulesPath = optionValue(args, "--rules");
@@ -532,6 +537,37 @@ async function runCapture(args: string[]): Promise<void> {
   console.log(JSON.stringify(diskCapture ?? observations, null, 2));
 }
 
+async function runImportRuntimeCapture(args: string[]): Promise<void> {
+  const inputPath = optionValue(args, "--input");
+  if (!inputPath) throw new Error("import-runtime-capture requires --input <capture.json>");
+  const invocationDirectory = process.env.INIT_CWD ?? process.cwd();
+  const capture = ingestRuntimeCaptureLog(JSON.parse(
+    await readFile(resolve(invocationDirectory, inputPath), "utf8"),
+  ));
+  const outputPath = optionValue(args, "--output");
+  if (outputPath) {
+    await writeFile(
+      resolve(invocationDirectory, outputPath),
+      `${JSON.stringify(capture, null, 2)}\n`,
+      "utf8",
+    );
+  }
+  const databasePath = optionValue(args, "--database");
+  if (databasePath) {
+    if (capture.observations.length === 0) {
+      throw new Error("import-runtime-capture cannot persist a log without observations");
+    }
+    const { DatabaseSync, SqliteRuntimeObservationRepository } = await import("@retroport/persistence");
+    const database = new DatabaseSync(resolve(invocationDirectory, databasePath));
+    try {
+      await new SqliteRuntimeObservationRepository(database).save(capture.observations);
+    } finally {
+      database.close();
+    }
+  }
+  console.log(JSON.stringify(capture, null, 2));
+}
+
 async function runExperiment(args: string[]): Promise<void> {
   const required = (option: string): string => {
     const value = optionValue(args, option);
@@ -636,7 +672,19 @@ function runAcceptance(): void {
     inputMapping: { left: -2, idle: 0, right: 2 },
     updateOrder: ["read-input", "set-velocity", "apply-velocity"],
   });
-  console.log(JSON.stringify(report, null, 2));
+  // The suite keeps full expected observations in memory for verification, but
+  // printing all 3,000 frames makes CI logs unnecessarily large. Emit the
+  // gate result and first mismatch only; a failing scenario remains actionable
+  // without flooding Docker/Actions output.
+  console.log(JSON.stringify({
+    passed: report.passed,
+    scenarios: report.scenarios.map(({ id, ticks, verification }) => ({
+      id,
+      ticks,
+      passed: verification.passed,
+      mismatch: verification.mismatch,
+    })),
+  }, null, 2));
   if (!report.passed) process.exitCode = 1;
 }
 

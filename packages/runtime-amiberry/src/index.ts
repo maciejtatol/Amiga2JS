@@ -118,6 +118,25 @@ export const diskSwapCaptureSchema = z.object({
 }).strict();
 export type DiskSwapCapture = z.infer<typeof diskSwapCaptureSchema>;
 
+/**
+ * A provider-neutral event envelope for importing a capture produced by an
+ * Amiberry adapter or recorder. Keeping the event shape separate from the
+ * canonical capture lets transports stream events without deciding how they
+ * should be ordered or persisted.
+ */
+export const runtimeCaptureEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("observation"), observation: runtimeObservationSchema }).strict(),
+  z.object({ type: z.literal("disk-swap"), event: diskSwapEventSchema }).strict(),
+  z.object({ type: z.literal("initial-disk-state"), state: diskSwapStateSchema }).strict(),
+]);
+export type RuntimeCaptureEvent = z.infer<typeof runtimeCaptureEventSchema>;
+
+export const runtimeCaptureLogSchema = z.object({
+  schemaVersion: z.literal(1),
+  events: z.array(runtimeCaptureEventSchema),
+}).strict();
+export type RuntimeCaptureLog = z.infer<typeof runtimeCaptureLogSchema>;
+
 export interface ObservationMismatch {
   readonly tick: number;
   readonly field: string;
@@ -252,6 +271,55 @@ export function normalizeDiskSwapJournal(input: unknown): DiskSwapJournal {
       : { initialState: normalizeDiskSwapState(journal.initialState) }),
     events: [...journal.events].sort((left, right) => left.tick - right.tick || left.drive - right.drive),
   };
+}
+
+/**
+ * Convert an unordered event stream into the canonical observation/journal
+ * representation consumed by Phase 0. Duplicate observations or initial media
+ * states are rejected because silently choosing one would make a capture
+ * impossible to reproduce from its source log.
+ */
+export function ingestRuntimeCaptureLog(input: unknown): DiskSwapCapture {
+  const log = runtimeCaptureLogSchema.parse(structuredClone(input));
+  const observations: RuntimeObservation[] = [];
+  const swapEvents: DiskSwapEvent[] = [];
+  let initialState: DiskSwapState | undefined;
+
+  for (const event of log.events) {
+    if (event.type === "observation") {
+      observations.push(event.observation);
+      continue;
+    }
+    if (event.type === "disk-swap") {
+      swapEvents.push(event.event);
+      continue;
+    }
+    if (initialState !== undefined) {
+      throw new Error("Runtime capture contains multiple initial disk states");
+    }
+    initialState = normalizeDiskSwapState(event.state);
+  }
+
+  const scenarioIds = new Set(observations.map(({ scenarioId }) => scenarioId));
+  if (scenarioIds.size > 1) {
+    throw new Error("Runtime capture must contain observations for one scenario");
+  }
+  const ticks = new Set<number>();
+  for (const observation of observations) {
+    if (ticks.has(observation.tick)) {
+      throw new Error(`Runtime capture contains duplicate observation tick: ${observation.tick}`);
+    }
+    ticks.add(observation.tick);
+  }
+
+  return diskSwapCaptureSchema.parse({
+    observations: [...observations].sort((left, right) => left.tick - right.tick),
+    diskSwapJournal: normalizeDiskSwapJournal({
+      schemaVersion: 1,
+      ...(initialState === undefined ? {} : { initialState }),
+      events: [...swapEvents].sort((left, right) => left.tick - right.tick || left.drive - right.drive),
+    }),
+  });
 }
 
 export type DiskSwapReplayOracle = Pick<

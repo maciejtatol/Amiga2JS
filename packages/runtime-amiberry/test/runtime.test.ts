@@ -5,6 +5,7 @@ import {
   captureScenarioWithDiskSwaps,
   findFirstObservationMismatch,
   HttpAmiberryTransport,
+  ingestRuntimeCaptureLog,
   InMemoryRuntimeObservationRepository,
   normalizeDiskSwapJournal,
   normalizeDiskSwapState,
@@ -103,6 +104,56 @@ describe("Amiberry runtime boundary", () => {
         ],
       },
     });
+  });
+
+  it("ingests event-stream captures into canonical observations and disk swaps", () => {
+    const artifactA = `sha256:${"a".repeat(64)}`;
+    const artifactB = `sha256:${"b".repeat(64)}`;
+    expect(ingestRuntimeCaptureLog({
+      schemaVersion: 1,
+      events: [
+        {
+          type: "disk-swap",
+          event: { tick: 1, action: "insert", drive: 0, artifactId: artifactB },
+        },
+        {
+          type: "observation",
+          observation: { scenarioId: "capture", tick: 1, input: "RIGHT", state: { playerX: 2 } },
+        },
+        {
+          type: "initial-disk-state",
+          state: { drives: [{ drive: 0, artifactId: artifactA }] },
+        },
+        {
+          type: "observation",
+          observation: { scenarioId: "capture", tick: 0, input: "NONE", state: { playerX: 0 } },
+        },
+      ],
+    })).toEqual({
+      observations: [
+        { scenarioId: "capture", tick: 0, input: "NONE", state: { playerX: 0 } },
+        { scenarioId: "capture", tick: 1, input: "RIGHT", state: { playerX: 2 } },
+      ],
+      diskSwapJournal: {
+        schemaVersion: 1,
+        initialState: { drives: [{ drive: 0, artifactId: artifactA }] },
+        events: [{ tick: 1, action: "insert", drive: 0, artifactId: artifactB }],
+      },
+    });
+  });
+
+  it("rejects duplicate observations and initial disk states", () => {
+    const observation = {
+      type: "observation",
+      observation: { scenarioId: "capture", tick: 0, input: "NONE", state: { playerX: 0 } },
+    } as const;
+    expect(() => ingestRuntimeCaptureLog({ schemaVersion: 1, events: [observation, observation] }))
+      .toThrow("duplicate observation tick");
+    const state = { drives: [] };
+    expect(() => ingestRuntimeCaptureLog({ schemaVersion: 1, events: [
+      { type: "initial-disk-state", state },
+      { type: "initial-disk-state", state },
+    ] })).toThrow("multiple initial disk states");
   });
 
   it("runs a one-frame state patch experiment in a fixed order", async () => {
