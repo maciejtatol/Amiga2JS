@@ -672,7 +672,19 @@ function runAcceptance(): void {
     inputMapping: { left: -2, idle: 0, right: 2 },
     updateOrder: ["read-input", "set-velocity", "apply-velocity"],
   });
-  console.log(JSON.stringify(report, null, 2));
+  // The suite keeps full expected observations in memory for verification, but
+  // printing all 3,000 frames makes CI logs unnecessarily large. Emit the
+  // gate result and first mismatch only; a failing scenario remains actionable
+  // without flooding Docker/Actions output.
+  console.log(JSON.stringify({
+    passed: report.passed,
+    scenarios: report.scenarios.map(({ id, ticks, verification }) => ({
+      id,
+      ticks,
+      passed: verification.passed,
+      mismatch: verification.mismatch,
+    })),
+  }, null, 2));
   if (!report.passed) process.exitCode = 1;
 }
 
