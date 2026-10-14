@@ -12,7 +12,7 @@ coverage/
 .env.*
 !.env.example
 
-# Commercial/proprietary disk images stay local; commit metadata and hashes only.
+# Commercial/proprietary disk images stay local; commit metadata and hashes only 
 *.adf
 *.ipf
 *.hdf
