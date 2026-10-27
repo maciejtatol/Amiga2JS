@@ -4,7 +4,7 @@
 
 ### Evidence-driven reconstruction of legacy games
 
-Turn Amiga/m68k binaries into maintainable TypeScript through static analysis,
+Turn m68k binaries into maintainable TypeScript through static analysis,
 runtime evidence, semantic reconstruction, and deterministic verification.
 
 ![Amiga2JS transforms legacy game binaries into modern source code](docs/assets/retroport-hero.png)
